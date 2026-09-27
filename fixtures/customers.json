@@ -1,0 +1,280 @@
+[
+  {
+    "customerId": "CUST-1001",
+    "name": "Ananya Sharma",
+    "city": "Bengaluru",
+    "memberSince": "2023",
+    "segment": "Loyal shopper",
+    "preferredLanguage": "en",
+    "behavior": "calm",
+    "escalationLevel": 0,
+    "orderIds": ["VW-1001"],
+    "pastIssues": [
+      {
+        "orderId": "VW-0890",
+        "type": "Size exchange",
+        "outcome": "Resolved in 3 days",
+        "when": "2 months ago"
+      }
+    ],
+    "pastConversations": [
+      {
+        "when": "2 months ago",
+        "channel": "Chat",
+        "orderId": "VW-0890",
+        "productName": "Linen midi dress",
+        "productId": "VW-SKU-DRESS-0890",
+        "issue": "size exchange",
+        "priority": "P3",
+        "status": "resolved",
+        "resolution": "Exchange completed",
+        "nextAction": null,
+        "ticketId": null,
+        "summary": "Asked about exchanging a dress one size up. Agent guided to exchange flow; no refund ticket.",
+        "outcome": "Exchange completed",
+        "transcript": [
+          { "role": "customer", "text": "Can I exchange my linen midi dress one size up?", "at": "2 months ago" },
+          { "role": "agent", "text": "Yes — order VW-0890 is eligible for a size exchange. I guided you to the exchange flow; no refund ticket was needed.", "at": "2 months ago" }
+        ],
+        "actions": ["Guided size exchange for VW-0890"]
+      }
+    ]
+  },
+  {
+    "customerId": "CUST-1002",
+    "name": "Rohan Mehta",
+    "city": "Mumbai",
+    "memberSince": "2022",
+    "segment": "Repeat caller",
+    "preferredLanguage": "hinglish",
+    "behavior": "frustrated",
+    "escalationLevel": 2,
+    "orderIds": ["VW-1002"],
+    "pastIssues": [
+      {
+        "orderId": "VW-1002",
+        "type": "Refund delay follow-up",
+        "outcome": "Open · contacted twice",
+        "when": "This week"
+      },
+      {
+        "orderId": "VW-0712",
+        "type": "Late delivery",
+        "outcome": "Resolved with apology coupon",
+        "when": "5 months ago"
+      }
+    ],
+    "pastConversations": [
+      {
+        "when": "3 days ago",
+        "channel": "Voice",
+        "orderId": "VW-1002",
+        "productName": "Quilted winter jacket",
+        "productId": "VW-SKU-JACKET-1002",
+        "issue": "refund delay",
+        "priority": "P2",
+        "status": "refund processing",
+        "resolution": "No ticket · follow-up suggested",
+        "nextAction": "Customer may call again if money has not arrived",
+        "ticketId": null,
+        "summary": "Rohan asked why jacket refund RF-209 had not arrived. Agent shared that refund started earlier and kept him inside the prepaid window.",
+        "outcome": "No ticket · follow-up suggested",
+        "transcript": [
+          { "role": "customer", "text": "Jacket ka refund nahi aaya. Order VW-1002.", "at": "3 days ago" },
+          { "role": "agent", "text": "Refund RF-209 for your quilted winter jacket is still inside the prepaid 5–7 working day window. No payment-support ticket yet.", "at": "3 days ago" }
+        ],
+        "actions": ["Shared RF-209 status", "No ticket created"]
+      },
+      {
+        "when": "Yesterday",
+        "channel": "Chat",
+        "orderId": "VW-1002",
+        "productName": "Quilted winter jacket",
+        "productId": "VW-SKU-JACKET-1002",
+        "issue": "refund delay",
+        "priority": "P1",
+        "status": "awaiting approval",
+        "resolution": "Pending approval · not created",
+        "nextAction": "Approve payment-support ticket on next contact",
+        "ticketId": null,
+        "summary": "Second contact. Rohan said money still missing and asked for payment support. Agent offered a payment-support ticket after approval; chat ended before he confirmed.",
+        "outcome": "Pending approval · not created",
+        "transcript": [
+          { "role": "customer", "text": "Money still missing. Please open payment support.", "at": "Yesterday" },
+          { "role": "agent", "text": "I can raise one payment-support ticket for VW-1002 after you approve. Shall I create it?", "at": "Yesterday" }
+        ],
+        "actions": ["Offered payment support · awaiting approval"]
+      }
+    ]
+  },
+  {
+    "customerId": "CUST-1003",
+    "name": "Meera Iyer",
+    "city": "Chennai",
+    "memberSince": "2024",
+    "segment": "COD shopper",
+    "preferredLanguage": "hi",
+    "behavior": "patient",
+    "escalationLevel": 0,
+    "orderIds": ["VW-1003"],
+    "pastIssues": [
+      {
+        "orderId": "VW-0955",
+        "type": "COD refund query",
+        "outcome": "Resolved within window",
+        "when": "3 months ago"
+      }
+    ],
+    "pastConversations": [
+      {
+        "when": "3 months ago",
+        "channel": "Voice",
+        "orderId": "VW-0955",
+        "productName": "Cotton kurta set",
+        "productId": "VW-SKU-KURTA-0955",
+        "issue": "COD refund timing",
+        "priority": "P3",
+        "status": "resolved",
+        "resolution": "Resolved within window",
+        "nextAction": null,
+        "ticketId": null,
+        "summary": "Asked when COD refund would arrive. Agent confirmed bank choice was saved and shared the 7–10 day window.",
+        "outcome": "Resolved within window",
+        "transcript": [
+          { "role": "customer", "text": "Mera COD refund kab aayega?", "at": "3 months ago" },
+          { "role": "agent", "text": "Your bank choice is saved. COD refunds normally arrive in 7–10 working days.", "at": "3 months ago" }
+        ],
+        "actions": ["Confirmed COD bank choice", "Shared 7–10 day window"]
+      }
+    ]
+  },
+  {
+    "customerId": "CUST-1004",
+    "name": "Kabir Singh",
+    "city": "Delhi",
+    "memberSince": "2023",
+    "segment": "New returner",
+    "preferredLanguage": "en",
+    "behavior": "anxious",
+    "escalationLevel": 1,
+    "orderIds": ["VW-1004"],
+    "pastIssues": [],
+    "pastConversations": [
+      {
+        "when": "4 days ago",
+        "channel": "App",
+        "orderId": "VW-1004",
+        "productName": "Straight-fit trousers",
+        "productId": "VW-SKU-TROUSERS-1004",
+        "issue": "return pickup",
+        "priority": "P2",
+        "status": "pickup pending",
+        "resolution": "Return accepted · pickup pending",
+        "nextAction": "Wait for pickup or request pickup support if delayed",
+        "ticketId": null,
+        "summary": "Submitted trousers return. System accepted the request and scheduled pickup.",
+        "outcome": "Return accepted · pickup pending",
+        "transcript": [
+          { "role": "customer", "text": "I submitted a return for my trousers.", "at": "4 days ago" },
+          { "role": "agent", "text": "Return for VW-1004 is accepted. Pickup is scheduled — still pending.", "at": "4 days ago" }
+        ],
+        "actions": ["Return accepted", "Pickup scheduled"]
+      }
+    ]
+  },
+  {
+    "customerId": "CUST-1005",
+    "name": "Ishita Rao",
+    "city": "Hyderabad",
+    "memberSince": "2021",
+    "segment": "Premium buyer",
+    "preferredLanguage": "en",
+    "behavior": "assertive",
+    "escalationLevel": 1,
+    "orderIds": ["VW-1005"],
+    "pastIssues": [
+      {
+        "orderId": "VW-0660",
+        "type": "Quality complaint",
+        "outcome": "Replacement approved",
+        "when": "8 months ago"
+      }
+    ],
+    "pastConversations": [
+      {
+        "when": "2 days ago",
+        "channel": "Voice",
+        "orderId": "VW-1005",
+        "productName": "Printed party dress",
+        "productId": "VW-SKU-DRESS-1005",
+        "issue": "qc fail",
+        "priority": "P2",
+        "status": "inspection failed",
+        "resolution": "No ticket · review offered",
+        "nextAction": "Customer may approve human review",
+        "ticketId": null,
+        "summary": "Asked why dress return failed inspection. Agent explained missing tags and offered human review; customer wanted to think.",
+        "outcome": "No ticket · review offered",
+        "transcript": [
+          { "role": "customer", "text": "Why did my dress return fail quality check?", "at": "2 days ago" },
+          { "role": "agent", "text": "Inspection failed because tags were missing on VW-1005. I can raise human review after you approve.", "at": "2 days ago" }
+        ],
+        "actions": ["Explained missing tags", "Offered human review"]
+      }
+    ]
+  },
+  {
+    "customerId": "CUST-1006",
+    "name": "Dev Patel",
+    "city": "Ahmedabad",
+    "memberSince": "2024",
+    "segment": "First-time caller",
+    "preferredLanguage": "en",
+    "behavior": "uncertain",
+    "escalationLevel": 0,
+    "orderIds": ["VW-1006"],
+    "pastIssues": [],
+    "pastConversations": []
+  },
+  {
+    "customerId": "CUST-1007",
+    "name": "Sana Khan",
+    "city": "Pune",
+    "memberSince": "2023",
+    "segment": "Exception case",
+    "preferredLanguage": "en",
+    "behavior": "concerned",
+    "escalationLevel": 1,
+    "orderIds": ["VW-1007"],
+    "pastIssues": [
+      {
+        "orderId": "VW-0821",
+        "type": "Wrong size",
+        "outcome": "Exchange completed",
+        "when": "4 months ago"
+      }
+    ],
+    "pastConversations": [
+      {
+        "when": "1 day ago",
+        "channel": "Chat",
+        "orderId": "VW-1007",
+        "productName": "Cotton innerwear set",
+        "productId": "VW-SKU-INNER-1007",
+        "issue": "wrong item final sale",
+        "priority": "P2",
+        "status": "exception review offered",
+        "resolution": "Human review offered · not yet approved",
+        "nextAction": "Approve human review for wrong-item exception",
+        "ticketId": null,
+        "summary": "Reported wrong innerwear item on a final-sale order. Agent explained final-sale rules and offered human review.",
+        "outcome": "Human review offered · not yet approved",
+        "transcript": [
+          { "role": "customer", "text": "I got the wrong innerwear on a final-sale order.", "at": "1 day ago" },
+          { "role": "agent", "text": "Final-sale items are normally non-returnable, but a wrong item can go to human review for VW-1007. Shall I create it?", "at": "1 day ago" }
+        ],
+        "actions": ["Explained final-sale exception", "Offered human review"]
+      }
+    ]
+  }
+]

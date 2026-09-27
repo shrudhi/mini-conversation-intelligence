@@ -1,0 +1,292 @@
+[
+  {
+    "alias": "CASE-GOOD",
+    "orderId": "VW-1001",
+    "pin": "4826",
+    "product": "Dress",
+    "amountInr": 1999,
+    "paymentMethod": "prepaid",
+    "finalSale": false,
+    "issue": "refund_unreceived",
+    "caseState": "refund_initiated",
+    "priorContacts": 0,
+    "situation": "Dress \u20b91,999, prepaid. Inspection passed. Refund RF-104 initiated 4 working days ago and not received.",
+    "returnRequest": {
+      "accepted": true,
+      "pickupStatus": "picked",
+      "pickupWorkingDaysElapsed": null,
+      "inspectionStatus": "passed",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": true,
+      "reference": "RF-104",
+      "workingDaysSinceInitiation": 4,
+      "received": false,
+      "destination": "original_payment"
+    },
+    "customerId": "CUST-1001",
+    "productId": "VW-SKU-DRESS-1001"
+  },
+  {
+    "alias": "CASE-BAD",
+    "orderId": "VW-1002",
+    "pin": "7391",
+    "product": "Jacket",
+    "amountInr": 3299,
+    "paymentMethod": "prepaid",
+    "finalSale": false,
+    "issue": "refund_unreceived",
+    "caseState": "refund_overdue",
+    "priorContacts": 2,
+    "situation": "Jacket \u20b93,299, prepaid. Refund RF-209 initiated 9 working days ago, unreceived, two earlier contacts.",
+    "returnRequest": {
+      "accepted": true,
+      "pickupStatus": "picked",
+      "pickupWorkingDaysElapsed": null,
+      "inspectionStatus": "passed",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": true,
+      "reference": "RF-209",
+      "workingDaysSinceInitiation": 9,
+      "received": false,
+      "destination": "original_payment"
+    },
+    "customerId": "CUST-1002",
+    "productId": "VW-SKU-JACKET-1002"
+  },
+  {
+    "alias": "CASE-COD",
+    "orderId": "VW-1003",
+    "pin": "6154",
+    "product": "Kurta",
+    "amountInr": 1499,
+    "paymentMethod": "cod",
+    "finalSale": false,
+    "issue": "refund_unreceived",
+    "caseState": "refund_initiated",
+    "priorContacts": 0,
+    "situation": "Kurta \u20b91,499, COD. Bank transfer already chosen. Refund RF-310 initiated 8 working days ago.",
+    "returnRequest": {
+      "accepted": true,
+      "pickupStatus": "picked",
+      "pickupWorkingDaysElapsed": null,
+      "inspectionStatus": "passed",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": true,
+      "reference": "RF-310",
+      "workingDaysSinceInitiation": 8,
+      "received": false,
+      "destination": "bank_transfer"
+    },
+    "customerId": "CUST-1003",
+    "productId": "VW-SKU-KURTA-1003"
+  },
+  {
+    "alias": "CASE-PICKUP",
+    "orderId": "VW-1004",
+    "pin": "2718",
+    "product": "Trousers",
+    "amountInr": 1799,
+    "paymentMethod": "prepaid",
+    "finalSale": false,
+    "issue": "pickup_delay",
+    "caseState": "pickup_pending",
+    "priorContacts": 0,
+    "situation": "Trousers \u20b91,799, prepaid. Return accepted. Pickup still pending after 4 working days. No refund initiation.",
+    "returnRequest": {
+      "accepted": true,
+      "pickupStatus": "pending",
+      "pickupWorkingDaysElapsed": 4,
+      "inspectionStatus": "not_started",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": false,
+      "reference": null,
+      "workingDaysSinceInitiation": null,
+      "received": false,
+      "destination": null
+    },
+    "customerId": "CUST-1004",
+    "productId": "VW-SKU-TROUSERS-1004"
+  },
+  {
+    "alias": "CASE-QC",
+    "orderId": "VW-1005",
+    "pin": "5902",
+    "product": "Dress",
+    "amountInr": 2399,
+    "paymentMethod": "prepaid",
+    "finalSale": false,
+    "issue": "qc_fail",
+    "caseState": "inspection_failed",
+    "priorContacts": 0,
+    "situation": "Dress \u20b92,399, prepaid. Picked up. Inspection failed because tags were missing. Refund not initiated.",
+    "returnRequest": {
+      "accepted": true,
+      "pickupStatus": "picked",
+      "pickupWorkingDaysElapsed": null,
+      "inspectionStatus": "failed",
+      "inspectionReason": "missing tags"
+    },
+    "refund": {
+      "initiated": false,
+      "reference": null,
+      "workingDaysSinceInitiation": null,
+      "received": false,
+      "destination": null
+    },
+    "customerId": "CUST-1005",
+    "productId": "VW-SKU-DRESS-1005"
+  },
+  {
+    "alias": "CASE-UNKNOWN",
+    "orderId": "VW-1006",
+    "pin": "8304",
+    "product": "Dress",
+    "amountInr": 2199,
+    "paymentMethod": "prepaid",
+    "finalSale": false,
+    "issue": "unknown_status",
+    "caseState": "status_unavailable",
+    "priorContacts": 0,
+    "situation": "Dress \u20b92,199, prepaid. Return status, initiation, and elapsed working days are unavailable.",
+    "returnRequest": {
+      "accepted": null,
+      "pickupStatus": "unknown",
+      "pickupWorkingDaysElapsed": null,
+      "inspectionStatus": "unknown",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": null,
+      "reference": null,
+      "workingDaysSinceInitiation": null,
+      "received": null,
+      "destination": null
+    },
+    "customerId": "CUST-1006",
+    "productId": "VW-SKU-DRESS-1006"
+  },
+  {
+    "alias": "CASE-FINAL",
+    "orderId": "VW-1007",
+    "pin": "4007",
+    "product": "Innerwear",
+    "amountInr": 899,
+    "paymentMethod": "prepaid",
+    "finalSale": true,
+    "issue": "wrong_item",
+    "caseState": "exception_review",
+    "priorContacts": 0,
+    "situation": "Final-sale innerwear \u20b9899. Customer reports the wrong item. No inspection yet.",
+    "returnRequest": {
+      "accepted": null,
+      "pickupStatus": "not_applicable",
+      "pickupWorkingDaysElapsed": null,
+      "inspectionStatus": "not_started",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": false,
+      "reference": null,
+      "workingDaysSinceInitiation": null,
+      "received": false,
+      "destination": null
+    },
+    "customerId": "CUST-1007",
+    "productId": "VW-SKU-INNER-1007"
+  },
+  {
+    "alias": "CASE-PICKUP-3",
+    "orderId": "VW-1008",
+    "pin": "3303",
+    "product": "Trousers",
+    "amountInr": 1599,
+    "paymentMethod": "prepaid",
+    "finalSale": false,
+    "issue": "pickup_delay",
+    "caseState": "pickup_boundary",
+    "priorContacts": 0,
+    "situation": "Boundary: pickup still pending after exactly 3 working days. Logistics escalation is not due.",
+    "returnRequest": {
+      "accepted": true,
+      "pickupStatus": "pending",
+      "pickupWorkingDaysElapsed": 3,
+      "inspectionStatus": "not_started",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": false,
+      "reference": null,
+      "workingDaysSinceInitiation": null,
+      "received": false,
+      "destination": null
+    },
+    "customerId": "CUST-1004",
+    "productId": "VW-SKU-TROUSERS-1008"
+  },
+  {
+    "alias": "CASE-PREPAID-7",
+    "orderId": "VW-1009",
+    "pin": "7707",
+    "product": "Shirt",
+    "amountInr": 2099,
+    "paymentMethod": "prepaid",
+    "finalSale": false,
+    "issue": "refund_unreceived",
+    "caseState": "refund_boundary",
+    "priorContacts": 0,
+    "situation": "Boundary: prepaid refund RF-707 initiated exactly 7 working days ago. Payment escalation is not due.",
+    "returnRequest": {
+      "accepted": true,
+      "pickupStatus": "picked",
+      "pickupWorkingDaysElapsed": null,
+      "inspectionStatus": "passed",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": true,
+      "reference": "RF-707",
+      "workingDaysSinceInitiation": 7,
+      "received": false,
+      "destination": "original_payment"
+    },
+    "customerId": "CUST-1001",
+    "productId": "VW-SKU-SHIRT-1009"
+  },
+  {
+    "alias": "CASE-COD-10",
+    "orderId": "VW-1010",
+    "pin": "1010",
+    "product": "Saree",
+    "amountInr": 2499,
+    "paymentMethod": "cod",
+    "finalSale": false,
+    "issue": "refund_unreceived",
+    "caseState": "refund_boundary",
+    "priorContacts": 0,
+    "situation": "Boundary: COD refund RF-810 initiated exactly 10 working days ago. Payment escalation is not due.",
+    "returnRequest": {
+      "accepted": true,
+      "pickupStatus": "picked",
+      "pickupWorkingDaysElapsed": null,
+      "inspectionStatus": "passed",
+      "inspectionReason": null
+    },
+    "refund": {
+      "initiated": true,
+      "reference": "RF-810",
+      "workingDaysSinceInitiation": 10,
+      "received": false,
+      "destination": "wallet"
+    },
+    "customerId": "CUST-1003",
+    "productId": "VW-SKU-SAREE-1010"
+  }
+]
