@@ -9,8 +9,6 @@ export type AgentStyleSettings = {
   tone: AgentTone;
   responseLength: ResponseLength;
   empathyLevel: EmpathyLevel;
-  greeting: string;
-  signOff: string;
   languageMode: LanguageMode;
   voice: string;
   updatedAt: string;
@@ -49,8 +47,6 @@ export function defaultAgentSettings(): AgentStyleSettings {
     tone: "warm",
     responseLength: "balanced",
     empathyLevel: "medium",
-    greeting: "Hi, I'm the VelaWear support assistant. How can I help with your order?",
-    signOff: "Happy to help further if you need anything else.",
     languageMode: "auto",
     voice: "marin",
     updatedAt: new Date(0).toISOString(),
@@ -72,8 +68,6 @@ export function normalizeAgentSettings(input: unknown): AgentStyleSettings {
       raw.empathyLevel === "low" || raw.empathyLevel === "medium" || raw.empathyLevel === "high"
         ? raw.empathyLevel
         : base.empathyLevel,
-    greeting: clampText(raw.greeting, base.greeting, 240),
-    signOff: clampText(raw.signOff, base.signOff, 160),
     languageMode: raw.languageMode === "en" || raw.languageMode === "hi" || raw.languageMode === "auto" ? raw.languageMode : base.languageMode,
     voice: typeof raw.voice === "string" && voiceIds.has(raw.voice) ? raw.voice : base.voice,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : base.updatedAt,
@@ -104,40 +98,5 @@ export function stylePhrasingInstructions(style: AgentStyleSettings): string {
       : style.empathyLevel === "high"
         ? "Show clear empathy when the customer is worried or frustrated, without adding new promises."
         : "Show light empathy when it fits, without adding new promises.";
-  const signOff = style.signOff.trim()
-    ? `If natural, end with this approved sign-off (do not invent another): "${style.signOff.trim()}"`
-    : "Do not invent a custom sign-off.";
-  return `${tone} ${length} ${empathy} ${signOff} Never change policy outcomes, eligibility, amounts, day counts, ticket decisions, or safety refusals.`;
-}
-
-/**
- * Apply presentation-only wrap to an already-approved reply.
- * Does not alter ticket/policy/fact content beyond optional greeting/sign-off text.
- */
-export function applyPresentationStyle(
-  approvedText: string,
-  style: AgentStyleSettings,
-  options: { kind?: string } = {},
-): string {
-  let text = approvedText.trim();
-  if (options.kind === "greeting" && style.greeting.trim()) {
-    text = style.greeting.trim();
-  }
-  const signOff = style.signOff.trim();
-  if (
-    signOff &&
-    options.kind !== "greeting" &&
-    options.kind !== "ask_language" &&
-    !text.toLowerCase().includes(signOff.toLowerCase()) &&
-    style.responseLength !== "brief"
-  ) {
-    text = `${text} ${signOff}`;
-  }
-  return text;
-}
-
-function clampText(value: unknown, fallback: string, max: number): string {
-  if (typeof value !== "string") return fallback;
-  const next = value.trim().slice(0, max);
-  return next || fallback;
+  return `${tone} ${length} ${empathy} The customer starts the chat — do not invent a greeting or custom sign-off. Never change policy outcomes, eligibility, amounts, day counts, ticket decisions, or safety refusals.`;
 }

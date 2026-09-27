@@ -3,6 +3,7 @@ import { hasApiKey, ttsVoice } from "@/lib/env";
 import { publicSpeechError } from "@/lib/errors";
 import { RequestGuardError, withSpeechSlot } from "@/lib/limits";
 import { resolveSession, saveSession } from "@/lib/sessions";
+import { speechPrefetchKey, takeSpeechPrefetch } from "@/lib/speech-prefetch";
 import { synthesizeSpeech } from "@/lib/speech";
 import type { ReplyLanguage } from "@/lib/types";
 
@@ -27,14 +28,14 @@ export async function POST(request: Request) {
     turn.speech.playback = body.playback;
     session.updatedAt = new Date().toISOString();
     await saveSession(session);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, session });
   }
 
   if (body.muted === true) {
     turn.speech = { status: "muted", voice: null, latencyMs: null, playback: null };
     session.updatedAt = new Date().toISOString();
     await saveSession(session);
-    return NextResponse.json({ muted: true, aiGenerated: true });
+    return NextResponse.json({ muted: true, aiGenerated: true, session });
   }
 
   if (!hasApiKey()) {
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     session.updatedAt = new Date().toISOString();
     await saveSession(session);
     return NextResponse.json(
-      { error: "Add OPENAI_API_KEY to .env.local before generating speech. No audio was requested." },
+      { error: "Add OPENAI_API_KEY to .env.local before generating speech. No audio was requested.", session },
       { status: 400 },
     );
   }
@@ -51,9 +52,11 @@ export async function POST(request: Request) {
   try {
     const language: ReplyLanguage = turn.language === "hi" || turn.language === "hinglish" ? turn.language : "en";
     const voice = session.agentStyle?.voice || ttsVoice();
-    const bytes = await withSpeechSlot(() =>
-      synthesizeSpeech(turn.responseText, language, { voice }),
-    );
+    const key = speechPrefetchKey(body.sessionId, body.turnId);
+    const prefetched = takeSpeechPrefetch(key);
+    const bytes = prefetched
+      ? await prefetched
+      : await withSpeechSlot(() => synthesizeSpeech(turn.responseText, language, { voice }));
     const latencyMs = Date.now() - started;
     turn.speech = { status: "generated", voice, latencyMs, playback: "not_played" };
     turn.latency.tts = latencyMs;

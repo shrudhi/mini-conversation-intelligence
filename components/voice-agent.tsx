@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FeedbackModal } from "@/components/feedback-modal";
 import { AGENT_AVATAR_SRC, customerAvatarSrc } from "@/lib/avatars";
 import { outcomeFromConversation } from "@/lib/conversation-outcome";
+import { formatSentimentLabel } from "@/lib/intent";
 
 async function readJsonResponse(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text();
@@ -15,6 +16,67 @@ async function readJsonResponse(response: Response): Promise<Record<string, unkn
   }
 }
 
+async function readAgentTurnEvents(
+  response: Response,
+  onReply: (payload: Record<string, unknown>) => void,
+  onSpeech: (payload: Record<string, unknown>) => Promise<void> | void,
+): Promise<Record<string, unknown>> {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("ndjson") || !response.body) {
+    const payload = await readJsonResponse(response);
+    onReply(payload);
+    return payload;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let replyPayload: Record<string, unknown> | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(trimmed) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      if (event.type === "reply" || (!event.type && typeof event.reply === "string")) {
+        replyPayload = event;
+        onReply(event);
+      } else if (event.type === "speech") {
+        await onSpeech(event);
+      } else if (event.type === "speech_error" && typeof event.error === "string") {
+        // Speech failed after text — keep the reply and surface the audio error separately in onSpeech path.
+        await onSpeech(event);
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    try {
+      const event = JSON.parse(buffer.trim()) as Record<string, unknown>;
+      if (event.type === "reply" || (!event.type && typeof event.reply === "string")) {
+        replyPayload = event;
+        onReply(event);
+      } else if (event.type === "speech" || event.type === "speech_error") {
+        await onSpeech(event);
+      }
+    } catch {
+      /* ignore trailing junk */
+    }
+  }
+
+  return replyPayload ?? {};
+}
+
 type Priority = {
   level: "P1" | "P2" | "P3";
   score: number;
@@ -24,6 +86,22 @@ type Priority = {
   decisionHint: string;
   sentiment?: string;
   issueFocus?: string;
+};
+
+type AgentTurnPayload = {
+  error?: string;
+  sessionId?: string;
+  turnId?: string;
+  reply?: string;
+  simulated?: boolean;
+  pendingApproval?: string | null;
+  ticket?: { type?: string; ticketId?: string; created?: boolean } | null;
+  ticketId?: string | null;
+  ticketType?: string | null;
+  liveSentiment?: string | null;
+  liveIssueFocus?: string | null;
+  livePriority?: Priority | null;
+  session?: Record<string, unknown>;
 };
 
 type PastConversation = {
@@ -507,6 +585,7 @@ export function VoiceAgent({
           languageMode,
           orderId: card.orderId,
           customerId: card.customerId,
+          muted,
           corrected: Boolean(
             originalFromVoice
               ? false
@@ -516,64 +595,42 @@ export function VoiceAgent({
           stt: sttRef.current,
         }),
       });
-      const payload = (await readJsonResponse(response)) as {
-        error?: string;
-        sessionId?: string;
-        turnId?: string;
-        reply?: string;
-        simulated?: boolean;
-        pendingApproval?: string | null;
-        ticket?: { type?: string; ticketId?: string; created?: boolean } | null;
-        ticketId?: string | null;
-        ticketType?: string | null;
-        liveSentiment?: string | null;
-        liveIssueFocus?: string | null;
-        livePriority?: Priority | null;
-        session?: Record<string, unknown>;
-      };
+
+      let speechHandled = false;
+      const payload = await readAgentTurnEvents(
+        response,
+        (event) => {
+          if (!response.ok || !event.reply || !event.sessionId) return;
+          applyAgentReply(event as AgentTurnPayload, text, originalFromVoice);
+        },
+        async (event) => {
+          if (event.error && !event.audioBase64) {
+            setError(String(event.error));
+            return;
+          }
+          if (typeof event.audioBase64 === "string" && event.sessionId && event.turnId) {
+            speechHandled = true;
+            if (event.session && typeof event.session === "object") {
+              setSessionSnapshot(event.session as Record<string, unknown>);
+            }
+            await playAudioBase64(String(event.audioBase64), String(event.contentType || "audio/mpeg"), {
+              sessionId: String(event.sessionId),
+              turnId: String(event.turnId),
+              session: (event.session as Record<string, unknown> | undefined) ?? sessionSnapshot,
+            });
+          }
+        },
+      );
+
       if (!response.ok || !payload.reply || !payload.sessionId) {
-        setError(payload.error || "The agent did not reply.");
+        setError((payload.error as string) || "The agent did not reply.");
         if (originalFromVoice) setDraft(originalFromVoice);
         return;
       }
-      setSessionId(payload.sessionId);
-      if (payload.session) setSessionSnapshot(payload.session);
-      setMessages((current) => [
-        ...current,
-        { id: `c-${current.length}`, role: "customer", text },
-        { id: `a-${current.length}`, role: "agent", text: payload.reply || "", simulated: payload.simulated },
-      ]);
-      setTurnCount((count) => count + 1);
-      setPending(payload.pendingApproval ?? null);
-      if (payload.ticketType) setTicketType(payload.ticketType);
-      if (payload.ticketId) setTicketId(payload.ticketId);
-      if (payload.ticket?.type) setTicketType(payload.ticket.type);
-      if (payload.ticket?.ticketId) setTicketId(payload.ticket.ticketId);
-      if (payload.livePriority && card) {
-        setCard({
-          ...card,
-          priority: payload.livePriority,
-          behavior:
-            payload.liveSentiment === "aggressive" || payload.liveSentiment === "escalating"
-              ? "frustrated"
-              : payload.liveSentiment === "frustrated"
-                ? "frustrated"
-                : payload.liveSentiment === "concerned"
-                  ? "anxious"
-                  : card.behavior,
-        });
-      }
-      if (/\bPIN\b|पिन/i.test(text) && !/does not match|not match/i.test(payload.reply || "")) {
-        setVerified(true);
-      }
-      if (/RF-\d+/i.test(payload.reply || "") || /quality check|pickup|final sale|human review|ticket/i.test(payload.reply || "")) {
-        setVerified(true);
-      }
-      setDraft("");
-      setOriginalTranscript(null);
-      sttRef.current = null;
-      setPhaseSafe("idle");
-      if (muted) {
+
+      if (!speechHandled && !muted && payload.turnId) {
+        await playSpeech(String(payload.sessionId), String(payload.turnId), (payload.session as Record<string, unknown> | undefined) ?? sessionSnapshot);
+      } else if (!speechHandled && muted && payload.turnId) {
         await fetch("/api/speech", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -584,14 +641,121 @@ export function VoiceAgent({
             session: payload.session ?? sessionSnapshot,
           }),
         });
-      } else if (!payload.simulated && payload.turnId) {
-        await playSpeech(payload.sessionId, payload.turnId, payload.session ?? sessionSnapshot);
       }
     } catch {
       setError("The message was not sent.");
       if (originalFromVoice) setDraft(originalFromVoice);
     } finally {
       setBusy(false);
+    }
+  }
+
+  function applyAgentReply(payload: AgentTurnPayload, text: string, originalFromVoice: string | null) {
+    setSessionId(payload.sessionId!);
+    if (payload.session) setSessionSnapshot(payload.session);
+    setMessages((current) => [
+      ...current,
+      { id: `c-${current.length}`, role: "customer", text },
+      { id: `a-${current.length}`, role: "agent", text: payload.reply || "", simulated: payload.simulated },
+    ]);
+    setTurnCount((count) => count + 1);
+    setPending(payload.pendingApproval ?? null);
+    if (payload.ticketType) setTicketType(payload.ticketType);
+    if (payload.ticketId) setTicketId(payload.ticketId);
+    if (payload.ticket?.type) setTicketType(payload.ticket.type);
+    if (payload.ticket?.ticketId) setTicketId(payload.ticket.ticketId);
+    if (payload.livePriority && card) {
+      setCard({
+        ...card,
+        priority: {
+          ...payload.livePriority,
+          sentiment: payload.liveSentiment ?? payload.livePriority.sentiment,
+          issueFocus: payload.liveIssueFocus ?? payload.livePriority.issueFocus,
+        },
+        behavior:
+          payload.liveSentiment === "aggressive" || payload.liveSentiment === "escalating"
+            ? "frustrated"
+            : payload.liveSentiment === "frustrated"
+              ? "frustrated"
+              : payload.liveSentiment === "concerned"
+                ? "anxious"
+                : card.behavior,
+      });
+    } else if (payload.liveSentiment && card) {
+      setCard({
+        ...card,
+        priority: {
+          ...card.priority,
+          sentiment: payload.liveSentiment,
+          issueFocus: payload.liveIssueFocus ?? card.priority.issueFocus,
+        },
+        behavior:
+          payload.liveSentiment === "aggressive" || payload.liveSentiment === "escalating"
+            ? "frustrated"
+            : payload.liveSentiment === "frustrated"
+              ? "frustrated"
+              : payload.liveSentiment === "concerned"
+                ? "anxious"
+                : card.behavior,
+      });
+    }
+    if (/\bPIN\b|पिन/i.test(text) && !/does not match|not match/i.test(payload.reply || "")) {
+      setVerified(true);
+    }
+    if (/RF-\d+/i.test(payload.reply || "") || /quality check|pickup|final sale|human review|ticket/i.test(payload.reply || "")) {
+      setVerified(true);
+    }
+    setDraft("");
+    setOriginalTranscript(null);
+    sttRef.current = null;
+    setPhaseSafe("idle");
+    void originalFromVoice;
+  }
+
+  async function playAudioBase64(
+    audioBase64: string,
+    contentType: string,
+    meta: { sessionId: string; turnId: string; session: Record<string, unknown> | null },
+  ) {
+    const generation = speechGenerationRef.current;
+    const bytes = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: contentType || "audio/mpeg" }));
+    setAudioUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return url;
+    });
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.src = url;
+    try {
+      if (generation !== speechGenerationRef.current) return;
+      await audio.play();
+      if (generation !== speechGenerationRef.current) {
+        audio.pause();
+        audio.currentTime = 0;
+        return;
+      }
+      await fetch("/api/speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: meta.sessionId,
+          turnId: meta.turnId,
+          playback: "played",
+          session: meta.session,
+        }),
+      });
+    } catch {
+      await fetch("/api/speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: meta.sessionId,
+          turnId: meta.turnId,
+          playback: "error",
+          session: meta.session,
+        }),
+      });
     }
   }
 
@@ -930,7 +1094,9 @@ export function VoiceAgent({
         <div className="experience-card">
           <h3>Customer experience</h3>
           <p>
-            <strong className="sentiment-label">{card.priority.sentiment || card.behavior}</strong>
+            <strong className="sentiment-label">
+              {formatSentimentLabel(card.priority.sentiment || card.behavior)}
+            </strong>
           </p>
           <small>{card.priority.issueFocus ? `Focus: ${card.priority.issueFocus.replaceAll("_", " ")}` : card.situation}</small>
           <div className="meta-grid">

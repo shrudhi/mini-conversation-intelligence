@@ -218,25 +218,6 @@ export function PmSettings() {
                 ))}
               </div>
             </fieldset>
-
-            <label className="field">
-              Approved greeting
-              <textarea
-                value={settings.greeting}
-                onChange={(event) => patch("greeting", event.target.value)}
-                rows={3}
-                maxLength={240}
-              />
-            </label>
-            <label className="field">
-              Approved sign-off
-              <textarea
-                value={settings.signOff}
-                onChange={(event) => patch("signOff", event.target.value)}
-                rows={2}
-                maxLength={160}
-              />
-            </label>
           </section>
 
           <section className="panel">
@@ -315,7 +296,7 @@ export function PmSettings() {
               {!capabilities?.previewAvailable ? (
                 <span className="settings-unavailable">{capabilities?.previewReason || "Preview unavailable"}</span>
               ) : (
-                <span className="muted tiny">Uses the current greeting text and speaking voice.</span>
+                <span className="muted tiny">Uses the current speaking voice and a short sample line.</span>
               )}
               <audio ref={audioRef} className="sr-only" controls />
             </div>

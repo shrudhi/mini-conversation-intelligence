@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { applyCustomerTurn, createState } from "@/lib/agent";
 import {
-  applyPresentationStyle,
   snapshotAgentSettings,
   stylePhrasingInstructions,
   type AgentStyleSettings,
@@ -9,15 +8,16 @@ import {
 import { getAgentSettings } from "@/lib/agent-settings-store";
 import { getCaseByOrderId } from "@/lib/cases";
 import { getCustomerByOrderId } from "@/lib/customers";
-import { hasApiKey } from "@/lib/env";
+import { hasApiKey, ttsVoice } from "@/lib/env";
 import { publicAgentError } from "@/lib/errors";
 import { guardReply } from "@/lib/guard";
 import { RequestGuardError, withAgentSlot } from "@/lib/limits";
 import { phraseWithModel } from "@/lib/phrase";
 import { assessPriority } from "@/lib/priority";
 import { makeCustomerFriendly, phrasingPreservesIntent } from "@/lib/reply";
-import { classifyMessage } from "@/lib/routing";
 import { resolveSession, saveSession } from "@/lib/sessions";
+import { beginSpeechPrefetch, speechPrefetchKey } from "@/lib/speech-prefetch";
+import { synthesizeSpeech } from "@/lib/speech";
 import { TicketError, createApprovedTicket } from "@/lib/tickets";
 import type { PersistedSession, ReplyLanguage } from "@/lib/types";
 
@@ -79,7 +79,6 @@ async function handleAgentTurn(body: Record<string, unknown>) {
   }
 
   const style = session.agentStyle ?? null;
-  const messageKind = classifyMessage(text);
 
   const next = await applyCustomerTurn(
     session,
@@ -105,12 +104,7 @@ async function handleAgentTurn(body: Record<string, unknown>) {
   );
 
   const last = next.turns[next.turns.length - 1];
-  if (last && style && messageKind === "greeting") {
-    // Presentation only: swap the canned greeting for the PM-approved greeting text.
-    last.responseText = applyPresentationStyle(last.responseText, style, { kind: "greeting" });
-  }
 
-  let phrasedWithModel = false;
   if (last && hasApiKey()) {
     const started = Date.now();
     try {
@@ -135,7 +129,6 @@ async function handleAgentTurn(body: Record<string, unknown>) {
         last.responseSource = "model";
         last.usage.inputTokens = phrased.inputTokens;
         last.usage.outputTokens = phrased.outputTokens;
-        phrasedWithModel = true;
       } else if (!problem) {
         last.uncertainties.push(
           "Model phrasing dropped a required part of the approved reply, so the safer local reply was kept.",
@@ -149,10 +142,6 @@ async function handleAgentTurn(body: Record<string, unknown>) {
       }
       last.uncertainties.push(publicAgentError(error));
     }
-  }
-
-  if (last && style && !phrasedWithModel && messageKind !== "greeting") {
-    last.responseText = applyPresentationStyle(last.responseText, style, { kind: messageKind });
   }
 
   const saved: PersistedSession = {
@@ -181,7 +170,8 @@ async function handleAgentTurn(body: Record<string, unknown>) {
         })
       : null;
 
-  return NextResponse.json({
+  const replyEvent = {
+    type: "reply" as const,
     sessionId: saved.id,
     turnId: last?.id ?? null,
     reply: last?.responseText ?? "",
@@ -202,6 +192,68 @@ async function handleAgentTurn(body: Record<string, unknown>) {
       version: citation.version,
     })),
     uncertainties: last?.uncertainties ?? [],
+  };
+
+  const wantSpeech = Boolean(last && hasApiKey() && body.muted !== true);
+  if (!wantSpeech) {
+    return NextResponse.json(replyEvent);
+  }
+
+  const language: ReplyLanguage = last!.language === "hi" || last!.language === "hinglish" ? last!.language : "en";
+  const voice = saved.agentStyle?.voice || ttsVoice();
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      controller.enqueue(encoder.encode(`${JSON.stringify(replyEvent)}\n`));
+      try {
+        const started = Date.now();
+        const bytes = await synthesizeSpeech(last!.responseText, language, { voice });
+        const latencyMs = Date.now() - started;
+        last!.speech = { status: "generated", voice, latencyMs, playback: "not_played" };
+        last!.latency.tts = latencyMs;
+        last!.latency.total =
+          (last!.latency.stt ?? 0) + last!.latency.retrieval + (last!.latency.model ?? 0) + latencyMs;
+        saved.updatedAt = new Date().toISOString();
+        await saveSession(saved);
+        controller.enqueue(
+          encoder.encode(
+            `${JSON.stringify({
+              type: "speech",
+              sessionId: saved.id,
+              turnId: last!.id,
+              audioBase64: Buffer.from(bytes).toString("base64"),
+              contentType: "audio/mpeg",
+              voice,
+              latencyMs,
+              session: saved,
+            })}\n`,
+          ),
+        );
+      } catch (error) {
+        beginSpeechPrefetch(speechPrefetchKey(saved.id, last!.id), () =>
+          synthesizeSpeech(last!.responseText, language, { voice }),
+        );
+        controller.enqueue(
+          encoder.encode(
+            `${JSON.stringify({
+              type: "speech_error",
+              sessionId: saved.id,
+              turnId: last!.id,
+              error: error instanceof Error ? error.message : "Speech was not generated.",
+              session: saved,
+            })}\n`,
+          ),
+        );
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
   });
 }
 

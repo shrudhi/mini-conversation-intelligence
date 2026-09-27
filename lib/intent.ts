@@ -49,34 +49,63 @@ export function detectConversationIntent(text: string): ConversationIntent {
 
 export function detectSentiment(text: string): LiveSentiment {
   const lower = text.toLowerCase();
+
+  // Complaint / legal / manager threats (EN + HI + Hinglish spellings).
   if (
     /\b(fraud|cheat|cheating|lawsuit|consumer court|legal|useless|worst|idiot|scam|harassment)\b/i.test(lower) ||
-    /\b(manager|supervisor|complaint|escalate now|raise (a )?complaint)\b/i.test(lower) ||
-    /धोखा|बेकार|कंपलेंट|मैनेजर|कोर्ट/u.test(text)
+    /\b(manager|supervisor|complaint|complain|escalate now|raise (a )?complaint)\b/i.test(lower) ||
+    /\b(complain|complaint|consumer court|legal action|polices?\b)/i.test(lower) ||
+    /धोखा|बेकार|कंपलेंट|कंप्लेन|शिकायत|मैनेजर|मैंनेजर|कोर्ट|कानूनी/u.test(text) ||
+    /complaint\s*kar|complain\s*kar|court\s*ja|consumer\s*court/i.test(lower) ||
+    /(अगर|agar).{0,40}(नहीं|nahi|nahee).{0,40}(तो|to).{0,40}(कंप्लेन|कंपलेंट|शिकायत|complaint|complain)/u.test(text) ||
+    /(दो दिन|2 दिन|do din|two days).{0,40}(नहीं|nahi).{0,30}(कंप्लेन|कंपलेंट|शिकायत|complaint|complain)/u.test(text)
   ) {
     return "escalating";
   }
+
   if (
     /\b(angry|furious|ridiculous|unacceptable|fed up|sick of|enough|shut up|stupid)\b/i.test(lower) ||
     /\b(this is (too )?late|still nothing|still waiting|every day|again and again)\b/i.test(lower) ||
-    /गुस्सा|बहुत लेट|परेशान|हर बार|बकवास/u.test(text)
+    /गुस्सा|बहुत लेट|परेशान|हर बार|बकवास|बहुत हो गया/u.test(text) ||
+    /\b(bahut late|bahut ho gaya|pagal|bakwas)\b/i.test(lower)
   ) {
     return "aggressive";
   }
+
   if (
     /\b(frustrated|annoyed|upset|disappointed|tired of|not happy|unhappy)\b/i.test(lower) ||
-    /\b(still not|abhi tak nahi|nahi aaya|nahi mila|kitne din|kab aayega)\b/i.test(lower) ||
-    /परेशान|निराश|अभी तक नहीं|कब आएगा/u.test(text)
+    /\b(still not|abhi tak nahi|nahi aaya|nahi mila|kitne din|kab aayega|kab tak)\b/i.test(lower) ||
+    /परेशान|निराश|अभी तक नहीं|कब आएगा|कब तक|नहीं मिला|नहीं आया|पैसा नहीं/u.test(text) ||
+    /पैसे?.{0,12}(नहीं|कब)/u.test(text)
   ) {
     return "frustrated";
   }
+
   if (
-    /\b(worried|concerned|anxious|please help|urgent|asap|important)\b/i.test(lower) ||
-    /चिंता|कृपया|जल्दी/u.test(text)
+    /\b(worried|concerned|anxious|please help|urgent|asap|important|as soon as)\b/i.test(lower) ||
+    /चिंता|कृपया|जल्दी|जल्द/u.test(text) ||
+    /\b(jaldi|jald se|please jaldi)\b/i.test(lower)
   ) {
     return "concerned";
   }
+
   return "calm";
+}
+
+export function formatSentimentLabel(sentiment: string | null | undefined): string {
+  if (!sentiment) return "Unknown";
+  const labels: Record<string, string> = {
+    calm: "Calm",
+    concerned: "Concerned",
+    frustrated: "Frustrated",
+    aggressive: "Frustrated",
+    escalating: "Escalating",
+    patient: "Patient",
+    anxious: "Anxious",
+    assertive: "Assertive",
+    uncertain: "Uncertain",
+  };
+  return labels[sentiment] ?? sentiment.replaceAll("_", " ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
 export function detectIssueFocus(text: string): IssueFocus {
@@ -87,24 +116,24 @@ export function detectIssueFocus(text: string): IssueFocus {
   if (/\b(reference|rf-\d+|refund number|refund id)\b/i.test(text) || /रिफंड नंबर/u.test(text)) return "reference";
   if (/\b(amount|how much|₹|rupees|kitna)\b/i.test(text) || /कितना|राशि/u.test(text)) return "amount";
   if (
-    /\b(when|timeline|how long|working days|kab|kitne din|arrive|aayega|aana)\b/i.test(text) ||
-    /कब|कितने दिन|समय/u.test(text)
+    /\b(when|timeline|how long|working days|kab|kitne din|arrive|aayega|aana|kab tak)\b/i.test(text) ||
+    /कब|कितने दिन|समय|कब तक/u.test(text)
   ) {
     return "timeline";
   }
   if (/\b(pickup|courier|logistics|pick up)\b/i.test(text) || /पिकअप/u.test(text)) return "pickup";
   if (/\b(quality check|inspection|qc|tags? missing)\b/i.test(text) || /क्वालिटी|टैग/u.test(text)) return "qc_fail";
   if (/\b(wrong item|wrong product|galat)\b/i.test(text) || /गलत आइटम|गलत प्रोडक्ट/u.test(text)) return "wrong_item";
-  if (/\b(refund|money|payment|paisa)\b/i.test(text) || /रिफंड|पैसे/u.test(text)) return "refund_delay";
+  if (/\b(refund|money|payment|paisa)\b/i.test(text) || /रिफंड|पैसे|पैसा/u.test(text)) return "refund_delay";
   if (/\b(status|update|where|kahan)\b/i.test(text) || /स्थिति|स्टेटस|कहाँ/u.test(text)) return "status";
   return "general";
 }
 
 function asksForEscalation(text: string): boolean {
   return (
-    /\b(escalate|escalation|supervisor|manager|complaint|raise (a )?(ticket|request|case)|open (a )?ticket)\b/i.test(
+    /\b(escalate|escalation|supervisor|manager|complaint|complain|raise (a )?(ticket|request|case)|open (a )?ticket)\b/i.test(
       text,
-    ) || /एस्केलेट|कंपलेंट|टिकट बना/u.test(text)
+    ) || /एस्केलेट|कंपलेंट|कंप्लेन|शिकायत|टिकट बना/u.test(text)
   );
 }
 

@@ -58,7 +58,7 @@ export async function synthesizeSpeech(
 }
 
 function speechInstructions(language: ReplyLanguage): string {
-  if (language === "hi") return "Speak Hindi in a calm customer-support tone. This audio is AI-generated.";
-  if (language === "hinglish") return "Speak Hinglish, mixing Hindi and English the way the text is written. This audio is AI-generated.";
-  return "Speak English in a calm customer-support tone. This audio is AI-generated.";
+  if (language === "hi") return "Speak clear Hindi. AI-generated support audio.";
+  if (language === "hinglish") return "Speak the Hinglish text naturally. AI-generated support audio.";
+  return "Speak clear English. AI-generated support audio.";
 }

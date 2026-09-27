@@ -83,6 +83,8 @@ export async function GET() {
         feedback: customerFeedback,
         feedbackDisplay: feedbackDisplay(customerFeedback),
         agentStyle: session.agentStyle ?? null,
+        liveSentiment: session.liveSentiment ?? null,
+        liveIssueFocus: session.liveIssueFocus ?? null,
       };
     })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

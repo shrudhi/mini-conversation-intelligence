@@ -29,7 +29,9 @@ export async function POST(request: Request) {
   const sample =
     typeof body.sampleText === "string" && body.sampleText.trim()
       ? body.sampleText.trim().slice(0, 280)
-      : style.greeting || "Hi, I'm the VelaWear support assistant. How can I help with your order?";
+      : style.languageMode === "hi"
+        ? "आपके ऑर्डर की रिफंड स्थिति यहाँ उपलब्ध है।"
+        : "Your refund status for this order is available here.";
 
   try {
     const bytes = await withSpeechSlot(() =>

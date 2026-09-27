@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { formatSentimentLabel } from "@/lib/intent";
 
 type Criterion = {
   criterion: string;
@@ -108,11 +109,11 @@ type ConversationSnapshot = {
     tone: string;
     responseLength: string;
     empathyLevel: string;
-    greeting: string;
-    signOff: string;
     languageMode: string;
     voice: string;
   } | null;
+  liveSentiment?: string | null;
+  liveIssueFocus?: string | null;
 };
 
 type Measured = {
@@ -797,6 +798,12 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
                   {snapshot.agentStyle.empathyLevel} · {snapshot.agentStyle.languageMode} · voice {snapshot.agentStyle.voice}
                 </p>
               ) : null}
+              {snapshot.liveSentiment || snapshot.liveIssueFocus ? (
+                <p className="muted pm-style-snap">
+                  Live customer tone: {formatSentimentLabel(snapshot.liveSentiment)}
+                  {snapshot.liveIssueFocus ? ` · Focus: ${snapshot.liveIssueFocus.replaceAll("_", " ")}` : ""}
+                </p>
+              ) : null}
               <Trace
                 turns={session.turns}
                 simulated={session.source !== "live"}
@@ -880,6 +887,7 @@ function SelectedScorecard({
         <p className="muted">
           {languageName(snapshot.language)} · {scenarioLabel} · {formatWhen(snapshot.updatedAt)} · {snapshot.turnCount} message
           {snapshot.turnCount === 1 ? "" : "s"}
+          {snapshot.liveSentiment ? ` · Tone: ${formatSentimentLabel(snapshot.liveSentiment)}` : ""}
         </p>
         <div className="actions">
           <button className="secondary" type="button" onClick={onOpen}>

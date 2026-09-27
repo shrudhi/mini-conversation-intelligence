@@ -949,8 +949,40 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
     }
   });
 
+  it("marks Hindi complaint threats as escalating live tone", async () => {
+    const { detectSentiment } = await import("../lib/intent");
+    assert.equal(
+      detectSentiment(
+        "मुझे आप जल्द से जल्द बताएं कि मुझे पैसा कब तक मिलेगा। अगर मुझे दो दिन में पैसा नहीं मिला तो मैं आप लोगों की कंप्लेन करूँगी।",
+      ),
+      "escalating",
+    );
+    assert.equal(detectSentiment("If I don't get my money in two days I will complain."), "escalating");
+    assert.equal(detectSentiment("abhi tak paisa nahi mila kab tak aayega"), "frustrated");
+
+    let state = createState({ languageMode: "hi", selectedOrderId: "VW-1002" });
+    state = await applyCustomerTurn(
+      state,
+      "मुझे आप जल्द से जल्द बताएं कि मुझे पैसा कब तक मिलेगा। अगर मुझे दो दिन में पैसा नहीं मिला तो मैं आप लोगों की कंप्लेन करूँगी।",
+      { createTicket: refusedTicket },
+    );
+    assert.equal(state.liveSentiment, "escalating");
+    assert.ok(state.livePriorityBoost >= 22);
+    const customer = getCustomer("CUST-1002")!;
+    const record = getCaseByOrderId("VW-1002")!;
+    const priority = assessPriority({
+      record,
+      customer,
+      liveSentiment: state.liveSentiment ?? undefined,
+      liveIssueFocus: state.liveIssueFocus ?? undefined,
+      liveBoost: state.livePriorityBoost,
+    });
+    assert.equal(priority.sentiment, "escalating");
+    assert.notEqual(priority.sentiment, "calm");
+  });
+
   it("freezes PM style per conversation across two customers without changing policy", async () => {
-    const { applyPresentationStyle, snapshotAgentSettings, stylePhrasingInstructions } = await import("../lib/agent-settings");
+    const { snapshotAgentSettings, stylePhrasingInstructions } = await import("../lib/agent-settings");
     const { getAgentSettings, saveAgentSettings } = await import("../lib/agent-settings-store");
     const { saveSession, getSession } = await import("../lib/sessions");
     const { evaluateConversation } = await import("../lib/evaluate");
@@ -959,22 +991,20 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
       tone: "warm",
       responseLength: "brief",
       empathyLevel: "high",
-      greeting: "Warm hello from VelaWear Care.",
-      signOff: "Take care.",
       languageMode: "en",
       voice: "marin",
     });
     const styleWarm = snapshotAgentSettings(await getAgentSettings());
     assert.equal(styleWarm.tone, "warm");
     assert.equal(styleWarm.voice, "marin");
+    assert.match(stylePhrasingInstructions(styleWarm), /customer starts the chat/i);
 
     const now = new Date().toISOString();
-    let rohan = await applyCustomerTurn(
+    const rohan = await applyCustomerTurn(
       createState({ languageMode: "en", selectedOrderId: "VW-1002" }),
       "Hello",
       { createTicket: refusedTicket },
     );
-    rohan.turns[0].responseText = applyPresentationStyle(rohan.turns[0].responseText, styleWarm, { kind: "greeting" });
     const sessionRohan = {
       ...rohan,
       id: "sess-style-rohan",
@@ -991,8 +1021,6 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
       tone: "professional",
       responseLength: "detailed",
       empathyLevel: "low",
-      greeting: "Good day. VelaWear support desk speaking.",
-      signOff: "Regards, VelaWear Support.",
       languageMode: "hi",
       voice: "cedar",
     });
@@ -1000,12 +1028,11 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
     assert.equal(stylePro.tone, "professional");
     assert.equal(stylePro.voice, "cedar");
 
-    let meera = await applyCustomerTurn(
+    const meera = await applyCustomerTurn(
       createState({ languageMode: stylePro.languageMode, selectedOrderId: "VW-1003" }),
       "Namaste",
       { createTicket: refusedTicket },
     );
-    meera.turns[0].responseText = applyPresentationStyle(meera.turns[0].responseText, stylePro, { kind: "greeting" });
     const sessionMeera = {
       ...meera,
       id: "sess-style-meera",
@@ -1024,17 +1051,13 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
     assert.ok(loadedMeera?.agentStyle);
     assert.equal(loadedRohan?.agentStyle?.tone, "warm");
     assert.equal(loadedRohan?.agentStyle?.voice, "marin");
-    assert.equal(loadedRohan?.agentStyle?.greeting, "Warm hello from VelaWear Care.");
     assert.equal(loadedMeera?.agentStyle?.tone, "professional");
     assert.equal(loadedMeera?.agentStyle?.voice, "cedar");
-    assert.notEqual(loadedRohan?.agentStyle?.greeting, loadedMeera?.agentStyle?.greeting);
-    assert.match(loadedRohan!.turns[0].responseText, /Warm hello from VelaWear Care/);
-    assert.match(loadedMeera!.turns[0].responseText, /Good day\. VelaWear support desk speaking/);
+    assert.notEqual(loadedRohan?.agentStyle?.tone, loadedMeera?.agentStyle?.tone);
 
     // Changing defaults again must not rewrite the earlier conversation snapshot.
     await saveAgentSettings({
       tone: "concise",
-      greeting: "Later default greeting.",
       voice: "alloy",
     });
     const stillRohan = await getSession("sess-style-rohan");
