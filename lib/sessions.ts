@@ -15,6 +15,29 @@ export function getSession(id: string): Promise<PersistedSession | null> {
   });
 }
 
+/** Accept a client-held session when the serverless store has no copy (common on Vercel). */
+export function asPersistedSession(value: unknown): PersistedSession | null {
+  if (!value || typeof value !== "object") return null;
+  const session = value as Partial<PersistedSession>;
+  if (typeof session.id !== "string" || !session.id.trim()) return null;
+  if (!Array.isArray(session.turns)) return null;
+  return session as PersistedSession;
+}
+
+export async function resolveSession(
+  sessionId: string | undefined,
+  clientSession: unknown,
+): Promise<PersistedSession | null> {
+  const fromClient = asPersistedSession(clientSession);
+  if (sessionId) {
+    const stored = await getSession(sessionId);
+    if (stored) return stored;
+    if (fromClient && fromClient.id === sessionId) return fromClient;
+    return null;
+  }
+  return fromClient;
+}
+
 export function saveSession(session: PersistedSession): Promise<void> {
   return withStoreLock(async () => {
     const sessions = await readJson<PersistedSession[]>(SESSIONS, []);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { applyCustomerTurn } from "@/lib/agent";
-import { getSession, saveSession } from "@/lib/sessions";
+import { resolveSession, saveSession } from "@/lib/sessions";
 import { TicketError, createApprovedTicket, listTickets } from "@/lib/tickets";
 import type { PersistedSession } from "@/lib/types";
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   if (typeof body.sessionId !== "string") {
     return NextResponse.json({ error: "Not created. A conversation is required." }, { status: 400 });
   }
-  const session = await getSession(body.sessionId);
+  const session = await resolveSession(body.sessionId, body.session);
   if (!session) return NextResponse.json({ error: "Not created. That conversation was not found." }, { status: 404 });
   if (!session.pendingAction) {
     return NextResponse.json({ error: "Not created. There is no escalation waiting for approval." }, { status: 400 });
@@ -70,5 +70,6 @@ export async function POST(request: Request) {
     ticketType: saved.ticketType,
     liveSentiment: saved.liveSentiment,
     liveIssueFocus: saved.liveIssueFocus,
+    session: saved,
   });
 }

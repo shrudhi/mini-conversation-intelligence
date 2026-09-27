@@ -5,6 +5,16 @@ import { FeedbackModal } from "@/components/feedback-modal";
 import { AGENT_AVATAR_SRC, customerAvatarSrc } from "@/lib/avatars";
 import { outcomeFromConversation } from "@/lib/conversation-outcome";
 
+async function readJsonResponse(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { error: response.ok ? "Unexpected response from the server." : "The server could not process that request." };
+  }
+}
+
 type Priority = {
   level: "P1" | "P2" | "P3";
   score: number;
@@ -121,6 +131,7 @@ export function VoiceAgent({
   const [card, setCard] = useState<WorkspaceCard | null>(null);
   const [languageMode, setLanguageMode] = useState<"en" | "hi" | "auto">("auto");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionSnapshot, setSessionSnapshot] = useState<Record<string, unknown> | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [originalTranscript, setOriginalTranscript] = useState<string | null>(null);
@@ -238,6 +249,7 @@ export function VoiceAgent({
 
   function resetConversation(clearCard: boolean) {
     setSessionId(null);
+    setSessionSnapshot(null);
     setMessages([]);
     setDraft("");
     setOriginalTranscript(null);
@@ -490,6 +502,7 @@ export function VoiceAgent({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
+          session: sessionSnapshot,
           text,
           languageMode,
           orderId: card.orderId,
@@ -503,7 +516,7 @@ export function VoiceAgent({
           stt: sttRef.current,
         }),
       });
-      const payload = (await response.json()) as {
+      const payload = (await readJsonResponse(response)) as {
         error?: string;
         sessionId?: string;
         turnId?: string;
@@ -516,6 +529,7 @@ export function VoiceAgent({
         liveSentiment?: string | null;
         liveIssueFocus?: string | null;
         livePriority?: Priority | null;
+        session?: Record<string, unknown>;
       };
       if (!response.ok || !payload.reply || !payload.sessionId) {
         setError(payload.error || "The agent did not reply.");
@@ -523,6 +537,7 @@ export function VoiceAgent({
         return;
       }
       setSessionId(payload.sessionId);
+      if (payload.session) setSessionSnapshot(payload.session);
       setMessages((current) => [
         ...current,
         { id: `c-${current.length}`, role: "customer", text },
@@ -562,10 +577,15 @@ export function VoiceAgent({
         await fetch("/api/speech", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: payload.sessionId, turnId: payload.turnId, muted: true }),
+          body: JSON.stringify({
+            sessionId: payload.sessionId,
+            turnId: payload.turnId,
+            muted: true,
+            session: payload.session ?? sessionSnapshot,
+          }),
         });
       } else if (!payload.simulated && payload.turnId) {
-        await playSpeech(payload.sessionId, payload.turnId);
+        await playSpeech(payload.sessionId, payload.turnId, payload.session ?? sessionSnapshot);
       }
     } catch {
       setError("The message was not sent.");
@@ -575,19 +595,29 @@ export function VoiceAgent({
     }
   }
 
-  async function playSpeech(activeSession: string, turnId: string) {
+  async function playSpeech(
+    activeSession: string,
+    turnId: string,
+    sessionForSpeech: Record<string, unknown> | null = sessionSnapshot,
+  ) {
     const generation = speechGenerationRef.current;
     const response = await fetch("/api/speech", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: activeSession, turnId }),
+      body: JSON.stringify({ sessionId: activeSession, turnId, session: sessionForSpeech }),
     });
     if (generation !== speechGenerationRef.current) return;
-    const payload = (await response.json()) as { error?: string; audioBase64?: string; contentType?: string };
+    const payload = (await readJsonResponse(response)) as {
+      error?: string;
+      audioBase64?: string;
+      contentType?: string;
+      session?: Record<string, unknown>;
+    };
     if (!response.ok || !payload.audioBase64) {
       setError(payload.error || "Speech was not generated.");
       return;
     }
+    if (payload.session) setSessionSnapshot(payload.session);
     if (generation !== speechGenerationRef.current) return;
     const bytes = Uint8Array.from(atob(payload.audioBase64), (char) => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: payload.contentType || "audio/mpeg" }));
@@ -609,13 +639,23 @@ export function VoiceAgent({
         await fetch("/api/speech", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: activeSession, turnId, playback: "played" }),
+          body: JSON.stringify({
+            sessionId: activeSession,
+            turnId,
+            playback: "played",
+            session: payload.session ?? sessionForSpeech,
+          }),
         });
       } catch {
         await fetch("/api/speech", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: activeSession, turnId, playback: "error" }),
+          body: JSON.stringify({
+            sessionId: activeSession,
+            turnId,
+            playback: "error",
+            session: payload.session ?? sessionForSpeech,
+          }),
         });
       }
     }
@@ -630,19 +670,21 @@ export function VoiceAgent({
       const response = await fetch("/api/escalate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, approved }),
+        body: JSON.stringify({ sessionId, approved, session: sessionSnapshot }),
       });
-      const payload = (await response.json()) as {
+      const payload = (await readJsonResponse(response)) as {
         error?: string;
         reply?: string;
         pendingApproval?: string | null;
         simulated?: boolean;
         ticket?: { type?: string; ticketId?: string; created?: boolean } | null;
+        session?: Record<string, unknown>;
       };
       if (!response.ok || !payload.reply) {
         setError(payload.error || "The escalation was not created.");
         return;
       }
+      if (payload.session) setSessionSnapshot(payload.session);
       setMessages((current) => [
         ...current,
         { id: `c-${current.length}`, role: "customer", text: approved ? "Yes, please create the ticket." : "Not now" },
@@ -668,9 +710,9 @@ export function VoiceAgent({
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, customerId: card.customerId }),
+        body: JSON.stringify({ sessionId, customerId: card.customerId, session: sessionSnapshot }),
       });
-      const payload = (await response.json()) as {
+      const payload = (await readJsonResponse(response)) as {
         error?: string;
         card?: WorkspaceCard;
         savedAt?: string;
@@ -717,12 +759,13 @@ export function VoiceAgent({
         body: JSON.stringify({
           sessionId,
           customerId: card.customerId,
+          session: sessionSnapshot,
           satisfied: input.satisfied,
           resolved: input.resolved,
           comment: input.comment,
         }),
       });
-      const payload = (await response.json()) as { error?: string; card?: WorkspaceCard };
+      const payload = (await readJsonResponse(response)) as { error?: string; card?: WorkspaceCard };
       if (!response.ok) {
         setFeedbackError(payload.error || "Feedback could not be saved.");
         feedbackLockRef.current = false;
@@ -748,9 +791,9 @@ export function VoiceAgent({
       const response = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, customerId: card.customerId, skip: true }),
+        body: JSON.stringify({ sessionId, customerId: card.customerId, skip: true, session: sessionSnapshot }),
       });
-      const payload = (await response.json()) as { error?: string; card?: WorkspaceCard };
+      const payload = (await readJsonResponse(response)) as { error?: string; card?: WorkspaceCard };
       if (!response.ok) {
         setFeedbackError(payload.error || "Could not skip feedback.");
         feedbackLockRef.current = false;

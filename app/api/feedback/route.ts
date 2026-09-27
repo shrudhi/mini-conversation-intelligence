@@ -6,7 +6,7 @@ import {
   getFeedbackBySession,
   saveFeedback,
 } from "@/lib/feedback";
-import { getSession } from "@/lib/sessions";
+import { resolveSession } from "@/lib/sessions";
 import type { FeedbackResolution, FeedbackSatisfaction, FeedbackStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A conversation is required." }, { status: 400 });
   }
 
-  const session = await getSession(body.sessionId);
+  const session = await resolveSession(body.sessionId, body.session);
   if (!session) return NextResponse.json({ error: "That conversation was not found." }, { status: 404 });
   if (!session.ended) {
     return NextResponse.json({ error: "End the conversation before sending feedback." }, { status: 400 });

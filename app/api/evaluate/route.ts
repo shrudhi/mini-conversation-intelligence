@@ -18,7 +18,7 @@ import {
 } from "@/lib/feedback";
 import { judgeLanguage } from "@/lib/judge";
 import { RequestGuardError, withAgentSlot } from "@/lib/limits";
-import { getSession, listRuns, listSessions, saveRun, saveSession } from "@/lib/sessions";
+import { resolveSession, listRuns, listSessions, saveRun, saveSession } from "@/lib/sessions";
 import type { EvalRun, QaStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
   if (typeof body.sessionId !== "string") {
     return NextResponse.json({ error: "A conversation is required." }, { status: 400 });
   }
-  const session = await getSession(body.sessionId);
+  const session = await resolveSession(body.sessionId, body.session);
   if (!session) return NextResponse.json({ error: "That conversation was not found." }, { status: 404 });
   if (session.turns.length === 0) {
     return NextResponse.json({ error: "There is nothing to evaluate yet." }, { status: 400 });

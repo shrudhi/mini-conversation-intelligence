@@ -17,7 +17,7 @@ import { phraseWithModel } from "@/lib/phrase";
 import { assessPriority } from "@/lib/priority";
 import { makeCustomerFriendly, phrasingPreservesIntent } from "@/lib/reply";
 import { classifyMessage } from "@/lib/routing";
-import { getSession, saveSession } from "@/lib/sessions";
+import { resolveSession, saveSession } from "@/lib/sessions";
 import { TicketError, createApprovedTicket } from "@/lib/tickets";
 import type { PersistedSession, ReplyLanguage } from "@/lib/types";
 
@@ -32,13 +32,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Send the corrected transcript as JSON." }, { status: 400 });
   }
 
+  try {
+    return await handleAgentTurn(body);
+  } catch (error) {
+    console.error("agent-turn failed", error instanceof Error ? error.message : error);
+    return NextResponse.json(
+      { error: "The agent could not save this turn. Try again in a moment." },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleAgentTurn(body: Record<string, unknown>) {
   const text = typeof body.text === "string" ? body.text.trim() : "";
   if (!text) return NextResponse.json({ error: "Enter or record a message before sending." }, { status: 400 });
   if (text.length > 2000) {
     return NextResponse.json({ error: "That message is too long. Keep a turn under 2,000 characters." }, { status: 400 });
   }
 
-  const existing = typeof body.sessionId === "string" ? await getSession(body.sessionId) : null;
+  const existing = await resolveSession(
+    typeof body.sessionId === "string" ? body.sessionId : undefined,
+    body.session,
+  );
   if (typeof body.sessionId === "string" && !existing) {
     return NextResponse.json({ error: "That conversation was not found. Start a new one." }, { status: 404 });
   }
@@ -181,6 +196,7 @@ export async function POST(request: Request) {
     liveIssueFocus: saved.liveIssueFocus,
     livePriority,
     agentStyle: saved.agentStyle ?? null,
+    session: saved,
     citations: (last?.citations ?? []).map((citation) => ({
       policyId: citation.policyId,
       version: citation.version,

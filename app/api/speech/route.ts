@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hasApiKey, ttsVoice } from "@/lib/env";
 import { publicSpeechError } from "@/lib/errors";
 import { RequestGuardError, withSpeechSlot } from "@/lib/limits";
-import { getSession, saveSession } from "@/lib/sessions";
+import { resolveSession, saveSession } from "@/lib/sessions";
 import { synthesizeSpeech } from "@/lib/speech";
 import type { ReplyLanguage } from "@/lib/types";
 
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (typeof body.sessionId !== "string" || typeof body.turnId !== "string") {
     return NextResponse.json({ error: "A session and turn are required." }, { status: 400 });
   }
-  const session = await getSession(body.sessionId);
+  const session = await resolveSession(body.sessionId, body.session);
   const turn = session?.turns.find((item) => item.id === body.turnId);
   if (!session || !turn) return NextResponse.json({ error: "That spoken turn was not found." }, { status: 404 });
 
@@ -66,15 +66,16 @@ export async function POST(request: Request) {
       voice,
       latencyMs,
       aiGenerated: true,
+      session,
     });
   } catch (error) {
     turn.speech.status = "error";
     session.updatedAt = new Date().toISOString();
     await saveSession(session);
     if (error instanceof RequestGuardError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return NextResponse.json({ error: error.message, session }, { status: error.status });
     }
     console.error("Speech failed", error instanceof Error ? error.name : "unknown");
-    return NextResponse.json({ error: publicSpeechError(error) }, { status: 502 });
+    return NextResponse.json({ error: publicSpeechError(error), session }, { status: 502 });
   }
 }
