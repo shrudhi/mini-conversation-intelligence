@@ -12,69 +12,17 @@ async function readJsonResponse(response: Response): Promise<Record<string, unkn
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
+    // Tolerate accidental NDJSON (first JSON line) from proxies or older builds.
+    const firstLine = text.split("\n").map((line) => line.trim()).find(Boolean);
+    if (firstLine) {
+      try {
+        return JSON.parse(firstLine) as Record<string, unknown>;
+      } catch {
+        /* fall through */
+      }
+    }
     return { error: response.ok ? "Unexpected response from the server." : "The server could not process that request." };
   }
-}
-
-async function readAgentTurnEvents(
-  response: Response,
-  onReply: (payload: Record<string, unknown>) => void,
-  onSpeech: (payload: Record<string, unknown>) => Promise<void> | void,
-): Promise<Record<string, unknown>> {
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.includes("ndjson") || !response.body) {
-    const payload = await readJsonResponse(response);
-    onReply(payload);
-    return payload;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let replyPayload: Record<string, unknown> | null = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      let event: Record<string, unknown>;
-      try {
-        event = JSON.parse(trimmed) as Record<string, unknown>;
-      } catch {
-        continue;
-      }
-      if (event.type === "reply" || (!event.type && typeof event.reply === "string")) {
-        replyPayload = event;
-        onReply(event);
-      } else if (event.type === "speech") {
-        await onSpeech(event);
-      } else if (event.type === "speech_error" && typeof event.error === "string") {
-        // Speech failed after text — keep the reply and surface the audio error separately in onSpeech path.
-        await onSpeech(event);
-      }
-    }
-  }
-
-  if (buffer.trim()) {
-    try {
-      const event = JSON.parse(buffer.trim()) as Record<string, unknown>;
-      if (event.type === "reply" || (!event.type && typeof event.reply === "string")) {
-        replyPayload = event;
-        onReply(event);
-      } else if (event.type === "speech" || event.type === "speech_error") {
-        await onSpeech(event);
-      }
-    } catch {
-      /* ignore trailing junk */
-    }
-  }
-
-  return replyPayload ?? {};
 }
 
 type Priority = {
@@ -595,53 +543,31 @@ export function VoiceAgent({
           stt: sttRef.current,
         }),
       });
-
-      let speechHandled = false;
-      const payload = await readAgentTurnEvents(
-        response,
-        (event) => {
-          if (!response.ok || !event.reply || !event.sessionId) return;
-          applyAgentReply(event as AgentTurnPayload, text, originalFromVoice);
-        },
-        async (event) => {
-          if (event.error && !event.audioBase64) {
-            setError(String(event.error));
-            return;
-          }
-          if (typeof event.audioBase64 === "string" && event.sessionId && event.turnId) {
-            speechHandled = true;
-            if (event.session && typeof event.session === "object") {
-              setSessionSnapshot(event.session as Record<string, unknown>);
-            }
-            await playAudioBase64(String(event.audioBase64), String(event.contentType || "audio/mpeg"), {
-              sessionId: String(event.sessionId),
-              turnId: String(event.turnId),
-              session: (event.session as Record<string, unknown> | undefined) ?? sessionSnapshot,
-            });
-          }
-        },
-      );
-
+      const payload = (await readJsonResponse(response)) as AgentTurnPayload;
       if (!response.ok || !payload.reply || !payload.sessionId) {
-        setError((payload.error as string) || "The agent did not reply.");
+        setError(payload.error || "The agent did not reply.");
         if (originalFromVoice) setDraft(originalFromVoice);
         return;
       }
 
-      if (!speechHandled && !muted && payload.turnId) {
-        await playSpeech(String(payload.sessionId), String(payload.turnId), (payload.session as Record<string, unknown> | undefined) ?? sessionSnapshot);
-      } else if (!speechHandled && muted && payload.turnId) {
-        await fetch("/api/speech", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: payload.sessionId,
-            turnId: payload.turnId,
-            muted: true,
-            session: payload.session ?? sessionSnapshot,
-          }),
-        });
-      }
+      const speechPromise =
+        !muted && payload.turnId
+          ? playSpeech(payload.sessionId, payload.turnId, payload.session ?? sessionSnapshot)
+          : muted && payload.turnId
+            ? fetch("/api/speech", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  sessionId: payload.sessionId,
+                  turnId: payload.turnId,
+                  muted: true,
+                  session: payload.session ?? sessionSnapshot,
+                }),
+              })
+            : null;
+
+      applyAgentReply(payload, text);
+      if (speechPromise) await speechPromise;
     } catch {
       setError("The message was not sent.");
       if (originalFromVoice) setDraft(originalFromVoice);
@@ -650,7 +576,7 @@ export function VoiceAgent({
     }
   }
 
-  function applyAgentReply(payload: AgentTurnPayload, text: string, originalFromVoice: string | null) {
+  function applyAgentReply(payload: AgentTurnPayload, text: string) {
     setSessionId(payload.sessionId!);
     if (payload.session) setSessionSnapshot(payload.session);
     setMessages((current) => [
@@ -709,54 +635,6 @@ export function VoiceAgent({
     setOriginalTranscript(null);
     sttRef.current = null;
     setPhaseSafe("idle");
-    void originalFromVoice;
-  }
-
-  async function playAudioBase64(
-    audioBase64: string,
-    contentType: string,
-    meta: { sessionId: string; turnId: string; session: Record<string, unknown> | null },
-  ) {
-    const generation = speechGenerationRef.current;
-    const bytes = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
-    const url = URL.createObjectURL(new Blob([bytes], { type: contentType || "audio/mpeg" }));
-    setAudioUrl((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return url;
-    });
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.src = url;
-    try {
-      if (generation !== speechGenerationRef.current) return;
-      await audio.play();
-      if (generation !== speechGenerationRef.current) {
-        audio.pause();
-        audio.currentTime = 0;
-        return;
-      }
-      await fetch("/api/speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: meta.sessionId,
-          turnId: meta.turnId,
-          playback: "played",
-          session: meta.session,
-        }),
-      });
-    } catch {
-      await fetch("/api/speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: meta.sessionId,
-          turnId: meta.turnId,
-          playback: "error",
-          session: meta.session,
-        }),
-      });
-    }
   }
 
   async function playSpeech(

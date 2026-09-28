@@ -156,6 +156,13 @@ async function handleAgentTurn(body: Record<string, unknown>) {
   };
   await saveSession(saved);
 
+  // Prefetch TTS in the background so /api/speech can reuse it when the client requests audio.
+  if (last && hasApiKey() && body.muted !== true) {
+    const language: ReplyLanguage = last.language === "hi" || last.language === "hinglish" ? last.language : "en";
+    const voice = saved.agentStyle?.voice || ttsVoice();
+    beginSpeechPrefetch(speechPrefetchKey(saved.id, last.id), () => synthesizeSpeech(last.responseText, language, { voice }));
+  }
+
   const orderId = saved.verifiedOrderId ?? saved.selectedOrderId;
   const record = orderId ? getCaseByOrderId(orderId) : null;
   const customer = orderId ? getCustomerByOrderId(orderId) : null;
@@ -170,8 +177,7 @@ async function handleAgentTurn(body: Record<string, unknown>) {
         })
       : null;
 
-  const replyEvent = {
-    type: "reply" as const,
+  return NextResponse.json({
     sessionId: saved.id,
     turnId: last?.id ?? null,
     reply: last?.responseText ?? "",
@@ -192,68 +198,6 @@ async function handleAgentTurn(body: Record<string, unknown>) {
       version: citation.version,
     })),
     uncertainties: last?.uncertainties ?? [],
-  };
-
-  const wantSpeech = Boolean(last && hasApiKey() && body.muted !== true);
-  if (!wantSpeech) {
-    return NextResponse.json(replyEvent);
-  }
-
-  const language: ReplyLanguage = last!.language === "hi" || last!.language === "hinglish" ? last!.language : "en";
-  const voice = saved.agentStyle?.voice || ttsVoice();
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      controller.enqueue(encoder.encode(`${JSON.stringify(replyEvent)}\n`));
-      try {
-        const started = Date.now();
-        const bytes = await synthesizeSpeech(last!.responseText, language, { voice });
-        const latencyMs = Date.now() - started;
-        last!.speech = { status: "generated", voice, latencyMs, playback: "not_played" };
-        last!.latency.tts = latencyMs;
-        last!.latency.total =
-          (last!.latency.stt ?? 0) + last!.latency.retrieval + (last!.latency.model ?? 0) + latencyMs;
-        saved.updatedAt = new Date().toISOString();
-        await saveSession(saved);
-        controller.enqueue(
-          encoder.encode(
-            `${JSON.stringify({
-              type: "speech",
-              sessionId: saved.id,
-              turnId: last!.id,
-              audioBase64: Buffer.from(bytes).toString("base64"),
-              contentType: "audio/mpeg",
-              voice,
-              latencyMs,
-              session: saved,
-            })}\n`,
-          ),
-        );
-      } catch (error) {
-        beginSpeechPrefetch(speechPrefetchKey(saved.id, last!.id), () =>
-          synthesizeSpeech(last!.responseText, language, { voice }),
-        );
-        controller.enqueue(
-          encoder.encode(
-            `${JSON.stringify({
-              type: "speech_error",
-              sessionId: saved.id,
-              turnId: last!.id,
-              error: error instanceof Error ? error.message : "Speech was not generated.",
-              session: saved,
-            })}\n`,
-          ),
-        );
-      }
-      controller.close();
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
   });
 }
 
