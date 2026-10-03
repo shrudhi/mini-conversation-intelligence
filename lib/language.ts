@@ -140,8 +140,20 @@ export function asksForHuman(text: string): boolean {
 
 export function asksNextSteps(text: string): boolean {
   return (
-    /\b(next steps?|what (do|should) i (have to |need to )?do|what happens next|what now|kya karna|aage kya)\b/i.test(text) ||
-    /अगला कदम|क्या करना|आगे क्या/u.test(text)
+    /\b(next steps?|what (do|should) i (have to |need to )?do|what happens next|what (will|would) happen|what now|what about that|kya karna|aage kya|usse kya|uska kya)\b/i.test(
+      text,
+    ) ||
+    /अगला कदम|क्या करना|आगे क्या|क्या होगा|उससे क्या|इससे क्या|क्या बनेगा|फिर क्या/u.test(text)
+  );
+}
+
+/** Clarifying a proposed ticket / support action still on the table. */
+export function asksAboutProposedAction(text: string): boolean {
+  if (asksNextSteps(text)) return true;
+  return (
+    /\b(what (is|does) that|what does (it|that) (do|mean)|how does that help|will that help|why (do|should) i)\b/i.test(
+      text,
+    ) || /ये क्या|वह क्या|वो क्या|कैसे मदद|क्या फायदा|क्यों/u.test(text)
   );
 }
 

@@ -3,6 +3,7 @@ import { getCaseByOrderId, lookupTools } from "./cases";
 import { constraintsFor, guardReply } from "./guard";
 import { detectConversationIntent } from "./intent";
 import {
+  asksAboutProposedAction,
   asksForHuman,
   asksNextSteps,
   asksOrderSpecific,
@@ -19,8 +20,10 @@ import { facetQuery, normalizeQuery } from "./normalize";
 import { composeReply } from "./reply";
 import { retrievePolicies } from "./retrieve";
 import { classifyMessage, findProfileConflict } from "./routing";
-import { decideCase } from "./rules";
+import { decideCase, type CaseDecision } from "./rules";
 import type { CaseRecord, ConversationState, ConversationTurn, ReplyLanguage } from "./types";
+import { getCustomerByOrderId } from "./customers";
+import { assessPriority } from "./priority";
 
 export type TicketResult = { ticketId: string; created: boolean } | { error: string };
 
@@ -161,6 +164,19 @@ export async function applyCustomerTurn(
     });
   }
 
+  // Clarify a live support offer before treating the turn as off-topic.
+  if (
+    state.pendingAction &&
+    (messageKind === "follow_up" || asksAboutProposedAction(customerText) || asksNextSteps(customerText)) &&
+    !isApproval(customerText) &&
+    !isRejection(customerText)
+  ) {
+    return finishVerified(state, customerText, meta, started, replyLang, ambiguous, intent, {
+      type: "explain_offer",
+      escalation: state.pendingAction,
+    });
+  }
+
   if (messageKind === "greeting" || messageKind === "unrelated" || messageKind === "unclear") {
     state.pendingAction = null;
     return append(state, customerText, meta, started, {
@@ -200,7 +216,8 @@ export async function applyCustomerTurn(
       intent.wantsTicket ||
       asksForHuman(customerText) ||
       intent.issueFocus === "ticket_status" ||
-      asksNextSteps(customerText);
+      asksNextSteps(customerText) ||
+      asksAboutProposedAction(customerText);
     if (!stillAboutOffer) state.pendingAction = null;
   }
 
@@ -293,6 +310,9 @@ export async function applyCustomerTurn(
 
   if (asksForHuman(customerText) && verified) {
     const decision = decideCase(verified);
+    if (shouldAutoCreateTicket(verified, intent, decision) && decision.escalationType && !state.ticketId) {
+      return autoCreateTicket(state, customerText, meta, started, replyLang, ambiguous, intent, deps, verified, decision);
+    }
     return finishVerified(state, customerText, meta, started, replyLang, ambiguous, intent, {
       type: "human_agent",
       canOffer: decision.offer && decision.eligible,
@@ -303,10 +323,14 @@ export async function applyCustomerTurn(
   // If a signed-in order exists, use it instead of asking for a PIN.
   if (!verified && selected) {
     state.verifiedOrderId = selected.orderId;
+    const decision = decideCase(selected);
+    if (shouldAutoCreateTicket(selected, intent, decision) && decision.escalationType && !state.ticketId) {
+      return autoCreateTicket(state, customerText, meta, started, replyLang, ambiguous, intent, deps, selected, decision);
+    }
     return finishVerified(state, customerText, meta, started, replyLang, ambiguous, intent, {
       type: "case",
       record: selected,
-      decision: decideCase(selected),
+      decision,
     });
   }
 
@@ -355,11 +379,98 @@ export async function applyCustomerTurn(
     });
   }
 
+  const decision = decideCase(verified);
+  if (shouldAutoCreateTicket(verified, intent, decision) && decision.escalationType && !state.ticketId) {
+    return autoCreateTicket(state, customerText, meta, started, replyLang, ambiguous, intent, deps, verified, decision);
+  }
   return finishVerified(state, customerText, meta, started, replyLang, ambiguous, intent, {
     type: "case",
     record: verified,
-    decision: decideCase(verified),
+    decision,
   });
+}
+
+/** Critical overdue / escalating cases: create the ticket and inform — do not ask for a yes. */
+export function shouldAutoCreateTicket(
+  record: CaseRecord,
+  intent: ReturnType<typeof detectConversationIntent>,
+  decision: CaseDecision,
+): boolean {
+  if (!decision.eligible || !decision.offer || !decision.escalationType || record.refund.received === true) {
+    return false;
+  }
+  if (decision.boundary === "over") return true;
+  if (intent.sentiment === "escalating" || intent.sentiment === "aggressive") return true;
+  if (record.caseState === "refund_overdue") return true;
+  if (record.priorContacts >= 2 && decision.boundary !== "inside" && decision.boundary !== "exact") return true;
+  const customer = getCustomerByOrderId(record.orderId);
+  if (customer) {
+    const priority = assessPriority({
+      record,
+      customer,
+      liveSentiment: intent.sentiment,
+      liveIssueFocus: intent.issueFocus,
+      liveBoost: intent.priorityBoost,
+    });
+    if (priority.level === "P1" && decision.boundary !== "exact") return true;
+  }
+  return false;
+}
+
+async function autoCreateTicket(
+  state: ConversationState,
+  customerText: string,
+  meta: TurnMeta,
+  started: number,
+  language: ReplyLanguage,
+  ambiguous: boolean,
+  intent: ReturnType<typeof detectConversationIntent>,
+  deps: TicketDeps,
+  record: CaseRecord,
+  decision: CaseDecision,
+): Promise<ConversationState> {
+  const escalation = decision.escalationType!;
+  if (state.toolFailure) {
+    return finishVerified(state, customerText, meta, started, language, ambiguous, intent, { type: "tool_failure" });
+  }
+  try {
+    const result = await deps.createTicket({ orderId: record.orderId, type: escalation });
+    if ("error" in result) {
+      return finishVerified(state, customerText, meta, started, language, ambiguous, intent, {
+        type: "ticket_refused",
+        reason: result.error,
+      });
+    }
+    state.ticketId = result.ticketId;
+    state.ticketType = escalation;
+    state.pendingAction = null;
+    return finishVerified(
+      state,
+      customerText,
+      meta,
+      started,
+      language,
+      ambiguous,
+      intent,
+      {
+        type: "auto_ticket",
+        ticketId: result.ticketId,
+        created: result.created,
+        escalation,
+        record,
+        decision,
+      },
+      {
+        approved: true,
+        ticket: { ticketId: result.ticketId, created: result.created, type: escalation },
+      },
+    );
+  } catch {
+    return finishVerified(state, customerText, meta, started, language, ambiguous, intent, {
+      type: "ticket_refused",
+      reason: "Not created. The support ticket could not be saved.",
+    });
+  }
 }
 
 async function approve(
@@ -436,15 +547,27 @@ function finishVerified(
     ticket?: ConversationTurn["ticket"];
   },
 ): ConversationState {
-  const record = state.verifiedOrderId ? getCaseByOrderId(state.verifiedOrderId) : null;
+  const record =
+    (kind.type === "auto_ticket" ? kind.record : null) ??
+    (state.verifiedOrderId ? getCaseByOrderId(state.verifiedOrderId) : null);
   const failed = state.toolFailure || kind.type === "tool_failure";
-  const decision = record && kind.type === "case" ? kind.decision : record ? decideCase(record) : null;
+  const decision =
+    kind.type === "case" || kind.type === "auto_ticket"
+      ? kind.decision
+      : record
+        ? decideCase(record)
+        : null;
   const actionReply = kind.type === "case" || kind.type === "human_agent";
   const offer = Boolean(decision?.offer && decision.eligible && !failed && actionReply && !state.ticketId);
   if (actionReply) state.pendingAction = offer ? decision?.escalationType ?? null : null;
+  if (kind.type === "explain_offer") {
+    // Keep the live offer so the customer can still approve/decline after the explanation.
+    state.pendingAction = kind.escalation;
+  }
   if (
     kind.type === "declined" ||
     kind.type === "ticket" ||
+    kind.type === "auto_ticket" ||
     kind.type === "ticket_refused" ||
     kind.type === "ticket_status" ||
     kind.type === "next_steps" ||
@@ -482,7 +605,12 @@ function finishVerified(
       ambiguous,
       context: replyContext(state, customerText, intent),
     }),
-    proposedAction: offer ? decision?.escalationType ?? null : null,
+    proposedAction:
+      kind.type === "explain_offer"
+        ? kind.escalation
+        : offer
+          ? decision?.escalationType ?? null
+          : null,
     approval: extras?.approved ? { approved: true, at: new Date().toISOString() } : null,
     ticket: extras?.ticket ?? null,
     record: failed ? null : record,

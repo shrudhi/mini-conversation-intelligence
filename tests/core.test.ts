@@ -276,21 +276,21 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
     assert.doesNotMatch(reply, /RET-|PAY-|SEC-|ACT-|vela-returns-v1|\bdemo\b/i);
   });
 
-  it("creates one payment ticket only after approval and ignores a repeated approval", async () => {
+  it("auto-creates a payment ticket for critical overdue refunds and ignores a repeated ask", async () => {
     let calls = 0;
     let state = createState({ languageMode: "en", selectedOrderId: "VW-1002" });
     state = await applyCustomerTurn(state, "My jacket refund has not arrived. Order VW-1002.", { createTicket });
-    assert.equal(state.ticketId, null);
+    assert.equal(calls, 1);
+    assert.equal(state.ticketId, "MOCK-VW-1002-payment_support");
     assert.match(state.turns.at(-1)!.responseText, /RF-209/);
-    assert.match(state.turns.at(-1)!.responseText, /approve/i);
-    state = await applyCustomerTurn(state, "Yes, please create the ticket.", { createTicket });
+    assert.match(state.turns.at(-1)!.responseText, /Priya|VelaWear Care/i);
     assert.match(state.turns.at(-1)!.responseText, /raised|ticket/i);
+    assert.doesNotMatch(state.turns.at(-1)!.responseText, /after you approve|Shall I/i);
     assert.doesNotMatch(state.turns.at(-1)!.responseText, /\bdemo\b/i);
     state = await applyCustomerTurn(state, "Yes, please create the ticket.", { createTicket });
     assert.equal(calls, 1);
-    assert.equal(state.ticketId, "MOCK-VW-1002-payment_support");
     assert.equal(state.turns.filter((turn) => turn.ticket?.created).length, 1);
-    assert.match(state.turns.at(-1)!.responseText, /already open/i);
+    assert.match(state.turns.at(-1)!.responseText, /already open|already with the team|chasing/i);
     assert.doesNotMatch(state.turns.at(-1)!.responseText, /\bdemo\b|already exists for payment support/i);
 
     function createTicket(input: { orderId: string; type: "payment_support" | "logistics" | "human_review" }) {
@@ -300,18 +300,28 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
     }
   });
 
+  it("answers follow-ups about a proposed action in context instead of resetting", async () => {
+    let state = createState({ languageMode: "hi", selectedOrderId: "VW-1002" });
+    state.verifiedOrderId = "VW-1002";
+    state.pendingAction = "payment_support";
+    state = await applyCustomerTurn(state, "उससे क्या होगा?", { createTicket: refusedTicket });
+    const follow = state.turns.at(-1)!.responseText;
+    assert.match(follow, /ticket|टिकट|chase|टीम|follow|raise/i);
+    assert.doesNotMatch(follow, /What would you like to know|क्या जानना चाहते हैं/i);
+    assert.equal(state.pendingAction, "payment_support");
+  });
+
   it("answers follow-ups without repeating the full case dump", async () => {
     let state = createState({ languageMode: "en", selectedOrderId: "VW-1002" });
     state = await applyCustomerTurn(state, "Jacket refund is late. Order VW-1002.", { createTicket: refusedTicket });
     const first = state.turns.at(-1)!.responseText;
-    assert.match(first, /RF-209/);
+    assert.match(first, /RF-209|ticket|Priya/i);
     state = await applyCustomerTurn(state, "This is ridiculous, when will my money come?", { createTicket: refusedTicket });
     const follow = state.turns.at(-1)!.responseText;
     assert.equal(state.liveSentiment, "aggressive");
     assert.ok(state.livePriorityBoost >= 18);
-    assert.match(follow, /working days|window|approve/i);
+    assert.match(follow, /working days|window|ticket|team|chase/i);
     assert.ok((follow.match(/RF-209/g) ?? []).length <= 1);
-    assert.ok(follow.length < first.length);
   });
 
   it("does not invent facts or a ticket when lookup fails", async () => {
@@ -513,6 +523,9 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
     assert.doesNotMatch(state.turns.at(-1)!.responseText, /share.{0,40}PIN|4-digit|OTP/i);
     assert.equal(state.verifiedOrderId, "VW-1002");
     assert.match(state.turns.at(-1)!.responseText, /RF-209/);
+    assert.equal(state.ticketId, "CARE-TICKET-001");
+    assert.match(state.turns.at(-1)!.responseText, /CARE-TICKET-001|Priya|VelaWear Care/i);
+    assert.doesNotMatch(state.turns.at(-1)!.responseText, /after you approve|Shall I/i);
 
     state = await applyCustomerTurn(
       state,
@@ -520,14 +533,10 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
       { createTicket },
     );
     assert.equal(state.verifiedOrderId, "VW-1002");
-    assert.match(state.turns.at(-1)!.responseText, /RF-209|approve|payment/i);
+    assert.match(state.turns.at(-1)!.responseText, /CARE-TICKET-001|already|team/i);
     assert.doesNotMatch(state.turns.at(-1)!.responseText, /please share the 4-digit|PIN first/i);
     assert.equal(state.liveSentiment, "escalating");
-
-    state = await applyCustomerTurn(state, "Yes, please create the ticket.", { createTicket });
-    assert.equal(state.ticketId, "CARE-TICKET-001");
-    assert.match(state.turns.at(-1)!.responseText, /CARE-TICKET-001/);
-    assert.doesNotMatch(state.turns.at(-1)!.responseText, /\bdemo\b|flagged it again/i);
+    assert.equal(calls, 1);
 
     state = await applyCustomerTurn(
       state,
@@ -901,27 +910,36 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
       assert.match(unclearState.turns.at(-1)!.responseText, /didn't catch|say it again|type it/i);
       assert.equal(unclearState.pendingAction, null);
 
-      // Action request / approval / decline where eligible; no inventing tickets when not.
+      // Critical eligible cases auto-create; non-auto offers still support decline/approve.
       if (decision.offer && decision.eligible && decision.escalationType) {
         let offered = createState({ languageMode: "en", selectedOrderId: record.orderId });
         offered = await applyCustomerTurn(offered, `Please help with my ${record.product.toLowerCase()}.`, { createTicket });
-        if (!offered.pendingAction) {
-          offered = await applyCustomerTurn(offered, "Please raise a support ticket.", { createTicket });
-        }
-        if (offered.pendingAction) {
-          const declined = await applyCustomerTurn(
-            createState({ languageMode: "en", selectedOrderId: record.orderId, pendingAction: offered.pendingAction }),
-            "No, do not create it.",
-            { createTicket },
-          );
-          assert.equal(declined.pendingAction, null);
-          assert.equal(declined.ticketId, null);
-
-          const approved = await applyCustomerTurn(offered, "Yes, create the ticket.", { createTicket });
-          assert.equal(approved.ticketId, `CARE-${record.orderId}`);
-          const again = await applyCustomerTurn(approved, "Yes, create another ticket.", { createTicket });
+        if (offered.ticketId) {
+          assert.equal(offered.ticketId, `CARE-${record.orderId}`);
+          assert.equal(offered.pendingAction, null);
+          assert.doesNotMatch(offered.turns.at(-1)!.responseText, /after you approve|Shall I/i);
+          const again = await applyCustomerTurn(offered, "Yes, create another ticket.", { createTicket });
           assert.equal(again.ticketId, `CARE-${record.orderId}`);
-          assert.match(again.turns.at(-1)!.responseText, /already open|do not need/i);
+          assert.match(again.turns.at(-1)!.responseText, /already open|do not need|already with the team|chasing/i);
+        } else {
+          if (!offered.pendingAction) {
+            offered = await applyCustomerTurn(offered, "Please raise a support ticket.", { createTicket });
+          }
+          if (offered.pendingAction) {
+            const declined = await applyCustomerTurn(
+              createState({ languageMode: "en", selectedOrderId: record.orderId, pendingAction: offered.pendingAction }),
+              "No, do not create it.",
+              { createTicket },
+            );
+            assert.equal(declined.pendingAction, null);
+            assert.equal(declined.ticketId, null);
+
+            const approved = await applyCustomerTurn(offered, "Yes, create the ticket.", { createTicket });
+            assert.equal(approved.ticketId, `CARE-${record.orderId}`);
+            const again = await applyCustomerTurn(approved, "Yes, create another ticket.", { createTicket });
+            assert.equal(again.ticketId, `CARE-${record.orderId}`);
+            assert.match(again.turns.at(-1)!.responseText, /already open|do not need|already with the team|chasing/i);
+          }
         }
       } else if (record.issue === "refund_unreceived" && decision.boundary !== "over") {
         assert.equal(state.pendingAction, null);

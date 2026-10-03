@@ -25,7 +25,7 @@ export function outcomeFromConversation(input: {
   if (input.pendingAction) {
     const action = input.pendingAction.replaceAll("_", " ");
     return {
-      nextStep: `Awaiting customer approval to raise ${action}. Once approved, create the ticket and track it here.`,
+      nextStep: `Customer was informed about ${action}. Confirm only if they still want the ticket, then track it here.`,
       decision: `Awaiting approval for ${action}`,
       priorityNote: `${input.priority.level} action proposed, not yet confirmed.`,
     };

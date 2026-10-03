@@ -1,6 +1,7 @@
 import { listCases } from "./cases";
 import { listCustomers } from "./customer-profiles";
 import {
+  asksAboutProposedAction,
   asksForHuman,
   asksNextSteps,
   asksOrderSpecific,
@@ -43,6 +44,14 @@ export function classifyMessage(
   if (options?.hasPendingAction && isApproval(trimmed)) return "approval";
   if (options?.hasPendingAction && isRejection(trimmed)) return "decline";
 
+  // Keep the live offer in context — "what will that do?" is not off-topic.
+  if (
+    options?.hasPendingAction &&
+    (asksAboutProposedAction(trimmed) || asksNextSteps(trimmed) || isContextualCaseFollowUp(trimmed))
+  ) {
+    return "follow_up";
+  }
+
   if (isUnclearSpeech(trimmed)) return "unclear";
   if (isGreeting(trimmed)) return "greeting";
 
@@ -51,6 +60,7 @@ export function classifyMessage(
   if (
     options?.hasTicket &&
     (asksNextSteps(trimmed) ||
+      asksAboutProposedAction(trimmed) ||
       detectConversationIntent(trimmed).issueFocus === "ticket_status" ||
       detectConversationIntent(trimmed).wantsTicket ||
       isContextualCaseFollowUp(trimmed))
@@ -158,13 +168,16 @@ export function hasSupportCues(text: string): boolean {
 
 function isContextualCaseFollowUp(text: string): boolean {
   if (isClearlyOffTopic(text) || isGreeting(text)) return false;
-  if (asksNextSteps(text) || detectConversationIntent(text).asksRepeatFacts) return true;
+  if (asksNextSteps(text) || asksAboutProposedAction(text) || detectConversationIntent(text).asksRepeatFacts) {
+    return true;
+  }
   if (hasSupportCues(text)) return true;
   // Pronouns / deixis about the ongoing issue — only when not off-topic.
   if (
-    /^(and |so |then )?(what about|how about|what of)?\s*(it|that|this|uska|uski|yeh|woh)\b/i.test(text.trim()) ||
-    /\b(that refund|this refund|that order|this order|the ticket|my money)\b/i.test(text) ||
-    /^(वह|यह|वो|उसका|उसकी)\b/u.test(text.trim())
+    /^(and |so |then )?(what about|how about|what of)?\s*(it|that|this|uska|uski|usse|yeh|woh)\b/i.test(text.trim()) ||
+    /\b(that refund|this refund|that order|this order|the ticket|my money|that request|that support)\b/i.test(text) ||
+    /^(वह|यह|वो|उसका|उसकी|उससे|इससे|ये)\b/u.test(text.trim()) ||
+    /क्या होगा|क्या बनेगा/u.test(text)
   ) {
     return true;
   }

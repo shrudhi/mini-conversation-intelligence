@@ -37,6 +37,15 @@ export function composeReply(input: {
     | { type: "public"; policies: RankedPolicy[] }
     | { type: "case"; record: CaseRecord; decision: CaseDecision }
     | { type: "ticket"; ticketId: string; created: boolean; escalation: EscalationType }
+    | {
+        type: "auto_ticket";
+        ticketId: string;
+        created: boolean;
+        escalation: EscalationType;
+        record: CaseRecord;
+        decision: CaseDecision;
+      }
+    | { type: "explain_offer"; escalation: EscalationType }
     | { type: "ticket_refused"; reason: string }
     | { type: "ticket_status"; ticketId: string; escalation: EscalationType; reference?: string | null }
     | { type: "next_steps"; ticketId: string; escalation: EscalationType; reference?: string | null; asksFixedDate?: boolean }
@@ -50,6 +59,7 @@ export function composeReply(input: {
 }): { text: string; citations: Citation[]; uncertainties: string[] } {
   const { language, kind } = input;
   const intent = input.context?.intent ?? detectConversationIntent(input.context?.customerText ?? "");
+  const firstCareTurn = !input.context?.disclosedBefore && !input.context?.priorTurns?.some((turn) => turn.disclosed);
   let text = "";
   let citations: Citation[] = [];
   const uncertainties: string[] = [];
@@ -147,11 +157,19 @@ export function composeReply(input: {
       hi: "ठीक है — मैं सपोर्ट टिकट नहीं बनाऊँगी। अगर समयसीमा या और कुछ चाहिए तो बताइए।",
       hinglish: "Theek hai — main support ticket nahi banaungi. Timeline ya aur kuch chahiye to bataiye.",
     });
+  } else if (kind.type === "explain_offer") {
+    const label = ticketLabel(kind.escalation);
+    text = say(language, {
+      en: `${empathy(language, intent.sentiment)}If we raise ${label.en}, our team opens a tracked ticket and chases your case with the right internal team. You keep the ticket ID for follow-up — you do not need to re-explain the issue. Shall I go ahead and create it now?`,
+      hi: `${empathy(language, intent.sentiment)}अगर हम ${label.hi} उठाते हैं, तो टीम एक ट्रैक्ड टिकट खोलकर आपके केस को सही टीम से आगे बढ़ाती है। आपको टिकट आईडी मिलती है — केस दोबारा समझाने की जरूरत नहीं। क्या मैं अभी बना दूँ?`,
+      hinglish: `${empathy(language, intent.sentiment)}Agar hum ${label.hinglish} raise karte hain, team tracked ticket khol kar aapka case sahi team se aage badhati hai. Aapko ticket ID milti hai — case dobara explain karne ki zarurat nahi. Kya main abhi bana doon?`,
+    });
+    citations = citationsFor(["ACT-01", "CX-01"]);
   } else if (kind.type === "greeting") {
     text = say(language, {
-      en: "Hi, I'm the VelaWear support assistant. How can I help with your order?",
-      hi: "नमस्ते, मैं VelaWear सपोर्ट असिस्टेंट हूँ। आपके ऑर्डर में कैसे मदद करूँ?",
-      hinglish: "Hi, main VelaWear support assistant hoon. Aapke order mein kaise madad karoon?",
+      en: "Hi, this is Priya from VelaWear Care. How can I help with your order today?",
+      hi: "नमस्ते, मैं प्रिया, VelaWear Care से बात कर रही हूँ। आज आपके ऑर्डर में कैसे मदद करूँ?",
+      hinglish: "Namaste, main Priya, VelaWear Care se baat kar rahi hoon. Aaj aapke order mein kaise madad karoon?",
     });
   } else if (kind.type === "unrelated") {
     text = say(language, {
@@ -201,16 +219,53 @@ export function composeReply(input: {
     const label = ticketLabel(kind.escalation);
     text = kind.created
       ? say(language, {
-          en: `${empathy(language, intent.sentiment)}I've raised ${label.en} ticket ${kind.ticketId} for your refund. Our team will follow up from here. Please keep this ticket ID. Is there anything else you need right now?`,
-          hi: `${empathy(language, intent.sentiment)}मैंने आपके रिफंड के लिए ${label.hi} टिकट ${kind.ticketId} बना दिया है। टीम आगे फॉलोअप करेगी। यह टिकट आईडी संभाल कर रखें। और कुछ चाहिए क्या?`,
-          hinglish: `${empathy(language, intent.sentiment)}Maine aapke refund ke liye ${label.hinglish} ticket ${kind.ticketId} bana diya hai. Team follow-up karegi. Ticket ID save rakhijiye. Aur kuch chahiye kya?`,
+          en: `${empathy(language, intent.sentiment)}I've raised ${label.en} ticket ${kind.ticketId}. Our team will follow up from here. Please keep this ticket ID — you don't need to do anything else right now.`,
+          hi: `${empathy(language, intent.sentiment)}मैंने ${label.hi} टिकट ${kind.ticketId} बना दिया है। टीम आगे फॉलोअप करेगी। यह टिकट आईडी संभाल कर रखें — अभी आपको और कुछ नहीं करना है।`,
+          hinglish: `${empathy(language, intent.sentiment)}Maine ${label.hinglish} ticket ${kind.ticketId} bana diya hai. Team follow-up karegi. Ticket ID save rakhijiye — abhi aapko aur kuch nahi karna.`,
         })
       : say(language, {
-          en: `${empathy(language, intent.sentiment)}${cap(label.en)} ticket ${kind.ticketId} is already open for this refund. Our team is still reviewing it. You do not need another ticket.`,
-          hi: `${empathy(language, intent.sentiment)}${label.hi} टिकट ${kind.ticketId} इस रिफंड के लिए पहले से खुला है। टीम अभी भी इसकी जाँच कर रही है। नए टिकट की जरूरत नहीं।`,
-          hinglish: `${empathy(language, intent.sentiment)}${label.hinglish} ticket ${kind.ticketId} is refund ke liye pehle se open hai. Team abhi bhi review kar rahi hai. Naye ticket ki zarurat nahi.`,
+          en: `${empathy(language, intent.sentiment)}${cap(label.en)} ticket ${kind.ticketId} is already open. Our team is still reviewing it. You do not need another ticket.`,
+          hi: `${empathy(language, intent.sentiment)}${label.hi} टिकट ${kind.ticketId} पहले से खुला है। टीम अभी भी इसकी जाँच कर रही है। नए टिकट की जरूरत नहीं।`,
+          hinglish: `${empathy(language, intent.sentiment)}${label.hinglish} ticket ${kind.ticketId} pehle se open hai. Team abhi bhi review kar rahi hai. Naye ticket ki zarurat nahi.`,
         });
     citations = citationsFor(["ACT-01", "CX-01"]);
+  } else if (kind.type === "auto_ticket") {
+    const label = ticketLabel(kind.escalation);
+    const refundDays = kind.record.refund.workingDaysSinceInitiation;
+    const pickupDays = kind.record.returnRequest.pickupWorkingDaysElapsed;
+    const reference = kind.record.refund.reference;
+    let statusLine = "";
+    if (kind.escalation === "logistics" && pickupDays !== null) {
+      statusLine = say(language, {
+        en: `Pickup for your ${kind.record.product.toLowerCase()} is still pending after ${pickupDays} working days. `,
+        hi: `आपके ${kind.record.product} की पिकअप ${pickupDays} कामकाजी दिनों से पेंडिंग है। `,
+        hinglish: `Aapke ${kind.record.product} ka pickup ${pickupDays} working days se pending hai. `,
+      });
+    } else if (refundDays !== null && reference) {
+      statusLine = say(language, {
+        en: `Your refund ${reference} is already ${refundDays} working days in and still not received. `,
+        hi: `आपका रिफंड ${reference} ${refundDays} कामकाजी दिनों से शुरू है और अभी तक नहीं मिला। `,
+        hinglish: `Aapka refund ${reference} ${refundDays} working days se start hai aur abhi tak nahi mila. `,
+      });
+    } else if (kind.record.returnRequest.inspectionStatus === "failed") {
+      statusLine = say(language, {
+        en: `Quality check failed${kind.record.returnRequest.inspectionReason ? ` because of ${kind.record.returnRequest.inspectionReason}` : ""}. `,
+        hi: `क्वालिटी चेक फेल हुआ${kind.record.returnRequest.inspectionReason ? ` — ${kind.record.returnRequest.inspectionReason}` : ""}। `,
+        hinglish: `Quality check fail hua${kind.record.returnRequest.inspectionReason ? ` — ${kind.record.returnRequest.inspectionReason}` : ""}. `,
+      });
+    }
+    text = kind.created
+      ? say(language, {
+          en: `${empathy(language, intent.sentiment)}${statusLine}I've raised ${label.en} ticket ${kind.ticketId} for you so the team can chase this now. Please keep this ticket ID — you don't need to confirm or repeat the issue.`,
+          hi: `${empathy(language, intent.sentiment)}${statusLine}मैंने आपके लिए ${label.hi} टिकट ${kind.ticketId} बना दिया है ताकि टीम अभी इसे आगे बढ़ाए। यह टिकट आईडी रखें — हाँ कहने या केस दोहराने की जरूरत नहीं।`,
+          hinglish: `${empathy(language, intent.sentiment)}${statusLine}Maine aapke liye ${label.hinglish} ticket ${kind.ticketId} bana diya hai taaki team abhi chase kare. Ticket ID rakhijiye — haan kehne ya case dobara batane ki zarurat nahi.`,
+        })
+      : say(language, {
+          en: `${empathy(language, intent.sentiment)}${statusLine}${cap(label.en)} ticket ${kind.ticketId} is already open. The team is chasing it from here.`,
+          hi: `${empathy(language, intent.sentiment)}${statusLine}${label.hi} टिकट ${kind.ticketId} पहले से खुला है। टीम यहीं से आगे बढ़ा रही है।`,
+          hinglish: `${empathy(language, intent.sentiment)}${statusLine}${label.hinglish} ticket ${kind.ticketId} pehle se open hai. Team yahin se chase kar rahi hai.`,
+        });
+    citations = citationsFor([...kind.decision.policyIds.slice(0, 2), "ACT-01", "CX-01"].filter((id, i, arr) => arr.indexOf(id) === i));
   } else {
     const rendered = renderCase(language, kind.record, kind.decision, {
       disclosedBefore: Boolean(input.context?.disclosedBefore),
@@ -224,12 +279,24 @@ export function composeReply(input: {
     uncertainties.push(...rendered.uncertainties);
   }
 
+  if (firstCareTurn && (kind.type === "case" || kind.type === "auto_ticket" || kind.type === "ticket" || kind.type === "human_agent")) {
+    text = `${agentIntro(language)}${text}`;
+  }
+
   if (input.ambiguous && kind.type !== "ask_language") {
     text = `${ambiguousLine(language)} ${text}`;
     uncertainties.push("A spoken number was ambiguous, so the verified record was used instead.");
   }
 
   return { text: makeCustomerFriendly(text), citations, uncertainties };
+}
+
+function agentIntro(language: ReplyLanguage): string {
+  return say(language, {
+    en: "Hi, this is Priya from VelaWear Care. ",
+    hi: "नमस्ते, मैं प्रिया, VelaWear Care से बात कर रही हूँ। ",
+    hinglish: "Namaste, main Priya, VelaWear Care se baat kar rahi hoon. ",
+  });
 }
 
 function renderCase(
@@ -531,7 +598,11 @@ function isApprovalLike(text: string): boolean {
 }
 
 function asksNextStepsLocal(text: string): boolean {
-  return /\b(next steps?|what (do|should) i (have to |need to )?do|what happens next|what now)\b/i.test(text);
+  return (
+    /\b(next steps?|what (do|should) i (have to |need to )?do|what happens next|what (will|would) happen|what now)\b/i.test(
+      text,
+    ) || /क्या होगा|आगे क्या|उससे क्या/u.test(text)
+  );
 }
 
 function ambiguousLine(language: ReplyLanguage): string {
@@ -555,7 +626,8 @@ function cap(value: string): string {
 }
 
 export function makeCustomerFriendly(text: string): string {
-  const tickets = [...text.matchAll(/\b(?:DEMO|CARE|MOCK)-TICKET-[A-Z0-9-]+\b/gi)].map((match) => match[0]);
+  // Protect ticket IDs before stripping words like "mock" / "demo".
+  const tickets = [...text.matchAll(/\b(?:DEMO|CARE|MOCK)-[A-Z0-9-]+\b/gi)].map((match) => match[0]);
   let working = text;
   tickets.forEach((ticket, index) => {
     working = working.replace(ticket, `__TICKET_${index}__`);
@@ -591,7 +663,8 @@ export function makeCustomerFriendly(text: string): string {
     .replace(/\s{2,}/g, " ")
     .trim();
   tickets.forEach((ticket, index) => {
-    working = working.replace(`__TICKET_${index}__`, ticket);
+    const display = ticket.replace(/^MOCK-/i, "CARE-");
+    working = working.replace(`__TICKET_${index}__`, display);
   });
   return working;
 }

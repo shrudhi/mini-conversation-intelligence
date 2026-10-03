@@ -39,7 +39,7 @@
     },
     {
       "id": "SCN-BAD",
-      "title": "Prepaid refund overdue after approval",
+      "title": "Prepaid refund overdue auto-ticket",
       "caseAlias": "CASE-BAD",
       "languageMode": "en",
       "language": "en",
@@ -49,17 +49,16 @@
       "tags": [
         "english",
         "prepaid",
-        "approval"
+        "auto-ticket"
       ],
       "turns": [
-        "My jacket refund has not arrived. Order VW-1002.",
-        "Yes, please create the ticket."
+        "My jacket refund has not arrived. Order VW-1002."
       ],
       "expectedPolicyIds": [
         "PAY-01",
         "ACT-01"
       ],
-      "expectedOutcome": "Give RF-209, acknowledge two earlier contacts, and create one payment-support mock ticket only after approval.",
+      "expectedOutcome": "Introduce Care, share RF-209 and the overdue window, then auto-create one payment-support ticket and inform the customer — do not ask for a yes.",
       "allowedActions": [
         "payment_support"
       ],
@@ -68,10 +67,13 @@
       "mustInclude": [
         "RF-209",
         "9 working days",
-        "approve"
+        "ticket",
+        "Priya"
       ],
       "mustExclude": [
-        "7391"
+        "7391",
+        "after you approve",
+        "Shall I"
       ]
     },
     {
@@ -128,21 +130,22 @@
       "expectedPolicyIds": [
         "RET-03"
       ],
-      "expectedOutcome": "Offer logistics escalation. Do not promise a refund arrival or open a payment escalation.",
+      "expectedOutcome": "Auto-create pickup support for overdue pickup and inform the customer. Do not promise a refund arrival or open a payment escalation.",
       "allowedActions": [
         "logistics"
       ],
       "escalationType": "logistics",
-      "expectTicket": false,
+      "expectTicket": true,
       "mustInclude": [
         "4 working days",
         "pickup support",
-        "approve"
+        "ticket"
       ],
       "mustExclude": [
         "RF-",
         "5–7",
-        "payment-support"
+        "payment-support",
+        "after you approve"
       ]
     },
     {
@@ -495,7 +498,8 @@
       "caseState": "refund_overdue",
       "tags": [
         "hinglish",
-        "code-switching"
+        "code-switching",
+        "auto-ticket"
       ],
       "turns": [
         "Maine jacket return ki thi. Refund abhi tak nahi mila. Order VW-1002."
@@ -503,19 +507,21 @@
       "expectedPolicyIds": [
         "PAY-01"
       ],
-      "expectedOutcome": "Answer in Hinglish with RF-209 and offer payment escalation only after approval.",
+      "expectedOutcome": "Answer in Hinglish with RF-209 and auto-create payment support without asking for a yes.",
       "allowedActions": [
         "payment_support"
       ],
       "escalationType": "payment_support",
-      "expectTicket": false,
+      "expectTicket": true,
       "mustInclude": [
         "RF-209",
-        "9 working days"
+        "9 working days",
+        "ticket"
       ],
       "mustExclude": [
         "7391",
-        "MOCK-"
+        "after you approve",
+        "haan karein"
       ]
     },
     {
@@ -634,14 +640,13 @@
       "turns": [
         "What is the status?",
         "I still have not received my refund. This is really, really bad and it's very pathetic. It is the worst service. I'm going to consumer court.",
-        "Yes, please create the ticket.",
         "What are the next steps? What do I have to do? If I will not get the refund in next two days, I'll raise the complaint to the consumer court."
       ],
       "expectedPolicyIds": [
         "PAY-01",
         "ACT-01"
       ],
-      "expectedOutcome": "Use signed-in VW-1002, share RF-209, create or acknowledge one payment-support ticket after approval, then give next steps without asking for a PIN or promising a two-day refund.",
+      "expectedOutcome": "Use signed-in VW-1002, auto-create one payment-support ticket, share RF-209, then give next steps without asking for a PIN or promising a two-day refund.",
       "allowedActions": [
         "payment_support"
       ],
