@@ -185,26 +185,6 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
             <section className="panel pm-chart-panel">
               <div className="panel-head">
                 <h2>
-                  Pass rate trend{" "}
-                  <InfoTip text="Share of scored runs that overall-pass each day — not average headline. A drop of more than ~10 points day-over-day is worth investigating." />
-                </h2>
-                <p>Share of scored runs that clear gated quality criteria.</p>
-              </div>
-              <LineChart
-                ariaLabel="Pass rate trend"
-                yMax={1}
-                valueFormat={(value) => `${Math.round(value * 100)}%`}
-                points={measured.passTrend.map((point) => ({
-                  date: point.date,
-                  value: point.passRate,
-                  label: `${point.passCount}/${point.runCount}`,
-                }))}
-              />
-            </section>
-
-            <section className="panel pm-chart-panel">
-              <div className="panel-head">
-                <h2>
                   Median turn latency{" "}
                   <InfoTip text="Median end-to-end time for a single voice/text turn. Rising median usually means slower speech-to-text, model reply, or text-to-speech." />
                 </h2>
@@ -329,11 +309,21 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
                 {(measured.criterionHealth ?? []).map((row) => {
                   const pctValue = row.passRate === null ? 0 : Math.round(row.passRate * 100);
                   const tone = row.passRate === null ? "muted" : pctValue >= 90 ? "ok" : pctValue >= 70 ? "warn" : "fail";
+                  const notAssessedHint =
+                    row.criterion === "language_quality"
+                      ? "Needs human review or AI judge (nuance/pronunciation)"
+                      : row.criterion === "task_outcome"
+                        ? "Needs a labeled scenario or clear customer intent (e.g. ask for human)"
+                        : "No assessed runs yet";
                   return (
                     <div key={row.criterion} className="pm-health-row" title={row.productSignal}>
                       <div className="pm-health-label">
                         <strong>{row.label}</strong>
-                        <span>{row.passRate === null ? "Not assessed" : `${pctValue}% pass`}</span>
+                        <span>
+                          {row.passRate === null
+                            ? `Not assessed · ${notAssessedHint}`
+                            : `${pctValue}% pass · ${row.assessedCount} run${row.assessedCount === 1 ? "" : "s"}`}
+                        </span>
                       </div>
                       <div className="pm-health-track">
                         <div className={`pm-health-fill ${tone}`} style={{ width: `${pctValue}%` }} />

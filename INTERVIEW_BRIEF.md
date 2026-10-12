@@ -121,8 +121,8 @@ Mock tickets (`CARE-…` display), fixture customers, no real payments/PII. Good
 | Case grounding | 20 | Invented amounts/dates destroy trust | Facts must match signed-in case record; no disclosure violations |
 | Action safety | 20 | Bad tickets = ops cost + wrong remediation | Ticket type, approval/auto-ticket rules, idempotency, eligibility |
 | Identity & privacy | 15 | Cross-customer leak = ship blocker | No PIN/OTP on signed-in desk; no other customer’s data |
-| Task outcome | 10 | Repeat contacts if ask ignored | Did the agent address the customer’s explicit request? |
-| Language quality | 10 | Fluency without policy is insufficient | Often `not_assessable` until human review or AI judge |
+| Task outcome | 10 | Repeat contacts if ask ignored | **Assessed** when a labeled fixture scenario exists (`mustInclude` / ticket expectations) **or** a clear intent is detected (e.g. customer asks for a human). Free-form live chats without those signals stay **`not_assessable`** — we refuse to invent a “done” score. |
+| Language quality | 10 | Fluency without policy is insufficient | Deterministic code only **fails** if internal jargon (RET-01, policy version) is spoken to the customer. Pronunciation, empathy, and natural Care tone stay **`not_assessable` until a human review or AI judge** — by design, so we don’t fake voice quality scores. |
 
 **Headline score (0–100)**  
 - **Why:** One number for leadership, but only when the run is “gradeable.”  

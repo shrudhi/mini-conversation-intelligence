@@ -680,15 +680,6 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
               </div>
               <CriterionHealthChart rows={measured.criterionHealth ?? []} />
             </section>
-            <section className="panel pm-chart-panel">
-              <div className="panel-head">
-                <h2>
-                  Pass rate over time <InfoTip text="Share of measured runs that overall-pass each day — not average headline. Pass requires published score and no gated failures." />
-                </h2>
-                <p>Share of measured runs that overall-pass each day (not average headline).</p>
-              </div>
-              <PassTrendChart points={measured.passTrend ?? []} />
-            </section>
             <section className="panel pm-attention">
               <div className="panel-head">
                 <h2>
@@ -1533,12 +1524,21 @@ function CriterionHealthChart({ rows }: { rows: NonNullable<Measured["criterionH
       {rows.map((row) => {
         const pctValue = row.passRate === null ? 0 : Math.round(row.passRate * 100);
         const tone = row.passRate === null ? "muted" : pctValue >= 90 ? "ok" : pctValue >= 70 ? "warn" : "fail";
+        const notAssessedHint =
+          row.criterion === "language_quality"
+            ? "Needs human review or AI judge"
+            : row.criterion === "task_outcome"
+              ? "Needs labeled scenario or clear intent"
+              : "No graded runs yet";
         return (
           <div key={row.criterion} className="pm-health-row" title={row.productSignal}>
             <div className="pm-health-label">
               <strong>{row.label}</strong>
               <span>
-                {row.passRate === null ? "Not assessed" : `${pctValue}% pass`} · {row.weight} pts · {row.assessedCount} run
+                {row.passRate === null
+                  ? `Not assessed · ${notAssessedHint}`
+                  : `${pctValue}% pass`}{" "}
+                · {row.weight} pts · {row.assessedCount} run
                 {row.assessedCount === 1 ? "" : "s"}
               </span>
             </div>
