@@ -56,7 +56,7 @@ export function DemoApp() {
           className={active === "pm" ? "landing-link active" : "landing-link"}
           onClick={() => setView("pm")}
         >
-          PM observability
+          Performance dashboard
         </button>
         <button
           type="button"

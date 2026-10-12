@@ -464,14 +464,13 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
             Open a chat, see how Priya scored on Care policy, and leave coaching notes on language. Hover info icons for definitions.
           </p>
         </div>
-        <div className="actions pm-tabs">
-          <button className={view === "overview" ? "secondary" : "ghost"} onClick={() => setView("overview")}>
-            Overview
-          </button>
-          <button className={view === "detail" ? "secondary" : "ghost"} onClick={() => setView("detail")}>
-            Conversation detail
-          </button>
-        </div>
+        {view === "detail" ? (
+          <div className="actions pm-tabs">
+            <button className="secondary" type="button" onClick={() => setView("overview")}>
+              ← Back to overview
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {error ? <div className="banner banner-danger">{error}</div> : null}
@@ -502,7 +501,10 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
                 <div className="qa-agent-stats">
                   <div>
                     <b>{pct(data.observability.agentScorecard.passRate)}</b>
-                    <span>Pass rate</span>
+                    <span>
+                      Pass rate{" "}
+                      <InfoTip text="Share of Priya’s scored live runs that overall-pass (published score + no gated criterion fail). Investigate if below 60%." />
+                    </span>
                   </div>
                   <div>
                     <b>
@@ -510,25 +512,40 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
                         ? "—"
                         : `${Math.round(data.observability.agentScorecard.avgScore)}`}
                     </b>
-                    <span>Avg score</span>
+                    <span>
+                      Avg score{" "}
+                      <InfoTip text="Mean published headline (0–100) across scored runs. Only runs with ≥80% assessed coverage publish a headline." />
+                    </span>
                   </div>
                   <div>
                     <b>{pct(data.observability.agentScorecard.csat)}</b>
-                    <span>CSAT</span>
+                    <span>
+                      CSAT{" "}
+                      <InfoTip text="Satisfied=yes ÷ submitted customer feedback for this agent’s ended chats. Skips are not counted as unsatisfied." />
+                    </span>
                   </div>
                   <div>
                     <b>{pct(data.observability.agentScorecard.resolutionRate)}</b>
-                    <span>Resolution</span>
+                    <span>
+                      Resolution{" "}
+                      <InfoTip text="Share of submitted surveys marked fully resolved (yes). Shows whether customers felt the issue closed." />
+                    </span>
                   </div>
                   <div>
                     <b>{data.observability.agentScorecard.needsReviewCount}</b>
-                    <span>Needs review</span>
+                    <span>
+                      Needs review{" "}
+                      <InfoTip text="Count of scored runs that failed a gate, are incomplete, or need supervisor coaching. Work these from the queue below." />
+                    </span>
                   </div>
                 </div>
               </div>
               {(data.observability.qaQueue ?? []).length > 0 ? (
                 <div className="qa-queue">
-                  <h3>QA coaching queue</h3>
+                  <h3>
+                    Coaching queue{" "}
+                    <InfoTip text="Chats that need coaching: criterion fails, language not yet reviewed, or not an overall pass. High = escalating tone or action-safety fail." />
+                  </h3>
                   <ul>
                     {data.observability.qaQueue.slice(0, 6).map((item) => (
                       <li key={item.sessionId}>
@@ -866,8 +883,11 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
       {view === "detail" ? (
         <section className="panel">
           <div className="panel-head">
-            <h2>Conversation evaluation</h2>
-            <p>Simple checks first; technical evidence is available underneath for explainability.</p>
+            <h2>
+              Full conversation review{" "}
+              <InfoTip text="Deep view for one chat: turn-by-turn transcript, rubric evidence, and human language coaching notes. Opened from the table, scorecard, or coaching queue — not a separate dashboard." />
+            </h2>
+            <p>Turn evidence and human language review for the selected chat. Use ← Back to overview when done.</p>
           </div>
           <div className="actions">
             {(data?.conversationSnapshots ?? []).map((item, index) => (
@@ -992,7 +1012,7 @@ function SelectedScorecard({
         </p>
         <div className="actions">
           <button className="secondary" type="button" onClick={onOpen}>
-            Open conversation
+            Open full review
           </button>
           <button
             className="ghost"
@@ -1003,7 +1023,7 @@ function SelectedScorecard({
               if (first) onEvidence(first);
             }}
           >
-            View trace
+            Jump to evidence
           </button>
         </div>
       </div>

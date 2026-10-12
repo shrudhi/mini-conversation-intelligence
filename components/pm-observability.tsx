@@ -82,12 +82,12 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
       .then(async (response) => {
         const payload = (await response.json()) as Payload & { error?: string };
         if (!response.ok) {
-          setError(payload.error || "Observability could not be loaded.");
+          setError(payload.error || "The performance dashboard could not be loaded.");
           return;
         }
         setData(payload);
       })
-      .catch(() => setError("Observability could not be loaded."));
+      .catch(() => setError("The performance dashboard could not be loaded."));
   }, []);
 
   const ops = data?.observability;
@@ -98,9 +98,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
     <div className="dashboard pm-dash obs-dash">
       <div className="pm-head">
         <div>
-          <h1 className="pm-title">PM observability</h1>
+          <h1 className="pm-title">Performance dashboard</h1>
           <p className="muted">
-            Decision layer for Care voice: quality, latency, escalation, and customer outcomes in one view.
+            Decision layer for Care voice: quality, latency, escalation, and customer outcomes in one view. Hover the info
+            icons for metric definitions.
           </p>
         </div>
         {onOpenSupportQa ? (
@@ -127,15 +128,36 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
           </p>
 
           <div className="pm-kpi-row">
-            <Kpi label="Conversations" value={String(ops.opsKpis.conversations)} hint={`${ops.opsKpis.endedConversations} ended`} />
+            <Kpi
+              label="Conversations"
+              value={String(ops.opsKpis.conversations)}
+              hint={`${ops.opsKpis.endedConversations} ended`}
+              tip="Total live Care conversations in this portfolio. Ended chats are the ones that can receive a survey and count toward CSAT."
+            />
             <Kpi
               label="Pass rate"
               value={pct(measured.passRate)}
               hint={measured.passRate === null ? undefined : `${measured.passCount}/${measured.runCount} passed`}
+              tip="Share of scored live runs that overall-pass. Pass = published headline score and no fail on gated criteria (policy, grounding, action, identity, task). Launch bar: investigate if below 60%."
             />
-            <Kpi label="CSAT" value={pct(feedback.satisfactionRate)} hint={feedback.satisfactionLabel} />
-            <Kpi label="Resolution" value={pct(feedback.resolutionRate)} hint={feedback.resolutionLabel} />
-            <Kpi label="Ticket rate" value={pct(ops.opsKpis.ticketRate)} hint={`${ops.opsKpis.autoTicketCount} tickets`} />
+            <Kpi
+              label="CSAT"
+              value={pct(feedback.satisfactionRate)}
+              hint={feedback.satisfactionLabel}
+              tip="Customer satisfaction: satisfied=yes ÷ submitted feedback forms. Skipped surveys do not count as unsatisfied."
+            />
+            <Kpi
+              label="Resolution"
+              value={pct(feedback.resolutionRate)}
+              hint={feedback.resolutionLabel}
+              tip="Share of submitted feedback marked fully resolved (yes). Partly and no stay out of this rate."
+            />
+            <Kpi
+              label="Ticket rate"
+              value={pct(ops.opsKpis.ticketRate)}
+              hint={`${ops.opsKpis.autoTicketCount} tickets`}
+              tip="Share of live conversations that created a support ticket (payment, logistics, or human review). Spikes often track overdue refunds."
+            />
             <Kpi
               label="P95 latency"
               value={ops.opsKpis.p95LatencyMs === null ? "—" : `${(ops.opsKpis.p95LatencyMs / 1000).toFixed(1)}s`}
@@ -144,13 +166,17 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
                   ? undefined
                   : `AHT ${(ops.opsKpis.avgHandleTimeMs / 1000).toFixed(1)}s`
               }
+              tip="95th percentile end-to-end turn latency (STT + retrieval + model + TTS). AHT is average handle time across turns in a conversation. High P95 means the worst turns feel slow."
             />
           </div>
 
           <div className="obs-grid">
             <section className="panel pm-chart-panel">
               <div className="panel-head">
-                <h2>Conversation volume</h2>
+                <h2>
+                  Conversation volume{" "}
+                  <InfoTip text="Daily count of live chats vs tickets created and human handoffs. Use this to see load and how often Care automates vs escalates." />
+                </h2>
                 <p>Daily chats vs tickets and human handoffs — watch load and automation share.</p>
               </div>
               <MultiBarChart series={ops.conversationVolume} />
@@ -158,7 +184,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
 
             <section className="panel pm-chart-panel">
               <div className="panel-head">
-                <h2>Pass rate trend</h2>
+                <h2>
+                  Pass rate trend{" "}
+                  <InfoTip text="Share of scored runs that overall-pass each day — not average headline. A drop of more than ~10 points day-over-day is worth investigating." />
+                </h2>
                 <p>Share of scored runs that clear gated quality criteria.</p>
               </div>
               <LineChart
@@ -175,7 +204,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
 
             <section className="panel pm-chart-panel">
               <div className="panel-head">
-                <h2>Median turn latency</h2>
+                <h2>
+                  Median turn latency{" "}
+                  <InfoTip text="Median end-to-end time for a single voice/text turn. Rising median usually means slower speech-to-text, model reply, or text-to-speech." />
+                </h2>
                 <p>Voice UX health — rising latency usually means slower STT/TTS or model turns.</p>
               </div>
               <LineChart
@@ -191,7 +223,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
 
             <section className="panel pm-chart-panel">
               <div className="panel-head">
-                <h2>Latency by stage</h2>
+                <h2>
+                  Latency by stage{" "}
+                  <InfoTip text="Average time spent in each pipeline stage. UI warns when STT ≥ 0.8s, agent reply ≥ 1.2s, or TTS ≥ 1.5s. Fix the tallest bar first." />
+                </h2>
                 <p>Where time is spent in a typical turn — prioritize the tallest bar.</p>
               </div>
               <HorizontalBars
@@ -230,7 +265,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
 
             <section className="panel pm-chart-panel">
               <div className="panel-head">
-                <h2>Language mix</h2>
+                <h2>
+                  Language mix{" "}
+                  <InfoTip text="Share of turns in English, Hindi, Hinglish, or uncertain. Helps plan bilingual Care capacity and TTS quality focus." />
+                </h2>
                 <p>Where bilingual Care capacity is used.</p>
               </div>
               <DonutChart items={ops.languageMix} ariaLabel="Language mix" />
@@ -238,7 +276,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
 
             <section className="panel pm-chart-panel">
               <div className="panel-head">
-                <h2>Live sentiment</h2>
+                <h2>
+                  Live sentiment{" "}
+                  <InfoTip text="Detected customer tone during the chat. Escalating or frustrated share signals when auto-ticket and empathy policy matter most. Watch if that share exceeds ~30%." />
+                </h2>
                 <p>Escalating / frustrated share signals when auto-ticket and empathy policy matter most.</p>
               </div>
               <DonutChart items={ops.sentimentMix} ariaLabel="Sentiment mix" />
@@ -246,7 +287,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
 
             <section className="panel pm-chart-panel">
               <div className="panel-head">
-                <h2>Ticket mix</h2>
+                <h2>
+                  Ticket mix{" "}
+                  <InfoTip text="Where tickets go: payment support, logistics/pickup, human review, or no ticket. Shows automation destinations for Care ops." />
+                </h2>
                 <p>Automation destinations — payment, logistics, or human review.</p>
               </div>
               <DonutChart items={ops.ticketMix} ariaLabel="Ticket mix" />
@@ -254,7 +298,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
 
             <section className="panel pm-chart-panel">
               <div className="panel-head">
-                <h2>Issue focus</h2>
+                <h2>
+                  Issue focus{" "}
+                  <InfoTip text="What customers are calling about (refund, pickup, QC, etc.). Dominant issues above ~40% share are candidates for FAQ or policy investment." />
+                </h2>
                 <p>What customers are calling about — use this for policy and FAQ investment.</p>
               </div>
               <HorizontalBars
@@ -272,7 +319,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
           <div className="obs-grid obs-grid-decisions">
             <section className="panel">
               <div className="panel-head">
-                <h2>Rubric strength</h2>
+                <h2>
+                  Rubric strength{" "}
+                  <InfoTip text="Pass share per gated criterion among assessed runs. Bars: ≥90% green, ≥70% amber, below 70% red. Fix the weakest high-weight bar first." />
+                </h2>
                 <p>Weakest high-weight criterion is usually the next product fix.</p>
               </div>
               <div className="pm-health">
@@ -296,7 +346,10 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
 
             <section className="panel pm-attention">
               <div className="panel-head">
-                <h2>Recommended product decisions</h2>
+                <h2>
+                  Recommended product decisions{" "}
+                  <InfoTip text="Prioritized roadmap hints from weak criteria, recurring failure patterns, incomplete scorecards, and low overall pass rate. High = fix first." />
+                </h2>
                 <p>Prioritized from quality gates, failures, and ops pressure.</p>
               </div>
               {(measured.productDecisions ?? []).length === 0 ? (
@@ -319,48 +372,80 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
           </div>
 
           <div className="obs-kpi-strip">
-            <div>
-              <strong>{pct(ops.opsKpis.handoffRate)}</strong>
-              <span>Human handoff rate</span>
-            </div>
-            <div>
-              <strong>{pct(ops.opsKpis.escalatingShare)}</strong>
-              <span>Escalating / frustrated share</span>
-            </div>
-            <div>
-              <strong>{pct(feedback.responseRate)}</strong>
-              <span>Survey response · {feedback.responseLabel}</span>
-            </div>
-            <div>
-              <strong>{pct(measured.policyAccuracyRate)}</strong>
-              <span>Policy accuracy</span>
-            </div>
-            <div>
-              <strong>{pct(measured.actionCorrectnessRate)}</strong>
-              <span>Action correctness</span>
-            </div>
-            <div>
-              <strong>
-                {measured.medianLatencyMs === null ? "—" : `${(measured.medianLatencyMs / 1000).toFixed(1)}s`}
-              </strong>
-              <span>Median response</span>
-            </div>
+            <StripStat
+              value={pct(ops.opsKpis.handoffRate)}
+              label="Human handoff rate"
+              tip="Share of live chats that offered or created a human-review path. Lower is better unless policy requires a human."
+            />
+            <StripStat
+              value={pct(ops.opsKpis.escalatingShare)}
+              label="Escalating / frustrated share"
+              tip="Share of conversations with escalating or frustrated live tone. Watch if above ~30% of volume."
+            />
+            <StripStat
+              value={pct(feedback.responseRate)}
+              label={`Survey response · ${feedback.responseLabel}`}
+              tip="Submitted feedback ÷ ended live conversations. Skips count separately and do not lower CSAT."
+            />
+            <StripStat
+              value={pct(measured.policyAccuracyRate)}
+              label="Policy accuracy"
+              tip="% of assessed runs that passed policy accuracy. Gaps mean wrong quotes or weak policy retrieval."
+            />
+            <StripStat
+              value={pct(measured.actionCorrectnessRate)}
+              label="Action correctness"
+              tip="% of assessed runs that passed action safety. Gaps mean unsafe tickets, duplicates, or wrong escalation type."
+            />
+            <StripStat
+              value={measured.medianLatencyMs === null ? "—" : `${(measured.medianLatencyMs / 1000).toFixed(1)}s`}
+              label="Median response"
+              tip="Median end-to-end turn latency across measured sessions. Useful for voice UX, separate from quality pass rate."
+            />
           </div>
         </>
       ) : !error ? (
-        <p className="muted">Loading observability…</p>
+        <p className="muted">Loading performance dashboard…</p>
       ) : null}
     </div>
   );
 }
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="pm-info-tip">
+      <button type="button" className="pm-info-btn" aria-label="More information" title={text}>
+        i
+      </button>
+      <span className="pm-info-bubble" role="tooltip">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function Kpi({ label, value, hint, tip }: { label: string; value: string; hint?: string; tip: string }) {
   return (
     <div className="pm-kpi pm-kpi-chart">
       <span className="pm-kpi-icon" aria-hidden />
       <b>{value}</b>
-      <span className="pm-kpi-label">{label}</span>
+      <span className="pm-kpi-label">
+        {label}
+        <InfoTip text={tip} />
+      </span>
       {hint ? <small>{hint}</small> : null}
+    </div>
+  );
+}
+
+function StripStat({ value, label, tip }: { value: string; label: string; tip: string }) {
+  return (
+    <div>
+      <strong>{value}</strong>
+      <span>
+        {label}
+        <InfoTip text={tip} />
+      </span>
     </div>
   );
 }

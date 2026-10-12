@@ -2156,6 +2156,18 @@ summary { cursor: pointer; color: var(--teal-deep); font-weight: 600; }
 .obs-kpi-strip span {
   color: var(--muted);
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.qa-agent-stats span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px;
 }
 
 .qa-agent-card {

@@ -53,7 +53,7 @@ export function LandingPage({
               Customer support
             </button>
             <button type="button" className="landing-link" onClick={onOpenDashboard}>
-              PM observability
+              Performance dashboard
             </button>
             <button type="button" className="landing-link" onClick={onOpenSupportQa}>
               Conversation review
@@ -75,7 +75,7 @@ export function LandingPage({
                 <span aria-hidden="true">→</span>
               </button>
               <button type="button" className="landing-btn ghost" onClick={onOpenDashboard}>
-                PM observability
+                Performance dashboard
                 <span aria-hidden="true">→</span>
               </button>
             </div>
