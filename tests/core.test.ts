@@ -10,9 +10,11 @@ import { getCustomer, loginWorkspace } from "../lib/customers";
 import { detectLanguage, extractPin, hasAmbiguousNumber, resolveReplyLanguage } from "../lib/language";
 import { normalizeQuery } from "../lib/normalize";
 import { publicAgentError } from "../lib/errors";
+import { buildDemoPortfolio } from "../lib/demo-portfolio";
 import { evaluateConversation, invalidCitationReason, listScenarios, runScenario, simulatedPreviews, summarizeMeasured } from "../lib/evaluate";
 import { guardReply } from "../lib/guard";
 import { resetLimitsForTests, withAgentSlot } from "../lib/limits";
+import { buildObservability } from "../lib/observability";
 import { setDataDirForTests } from "../lib/persist";
 import { assessPriority } from "../lib/priority";
 import { retrievePolicies } from "../lib/retrieve";
@@ -1094,6 +1096,21 @@ describe("VelaWear voice agent checks", { concurrency: 1 }, () => {
     const decisionAfterStyleChange = decideCase(overdue);
     assert.deepEqual(decisionWarmPath, decisionAfterStyleChange);
     assert.match(stylePhrasingInstructions(stylePro), /Never change policy outcomes/);
+  });
+
+  it("demo portfolio and observability fill empty PM / Support dashboards", async () => {
+    const demo = await buildDemoPortfolio();
+    assert.ok(demo.sessions.length >= 3);
+    assert.equal(demo.runs.every((run) => run.source === "live"), true);
+    const measured = summarizeMeasured(demo.runs, demo.sessions);
+    assert.ok((measured.runCount ?? 0) >= 3);
+    assert.ok(measured.passTrend.length > 0);
+    const obs = buildObservability(demo.runs, demo.sessions, demo.feedback);
+    assert.ok(obs.opsKpis.conversations >= 3);
+    assert.ok(obs.conversationVolume.length > 0);
+    assert.ok(obs.latencyStages.ttsMs !== null);
+    assert.equal(obs.agentScorecard.agentName, "Priya");
+    assert.ok(obs.agentScorecard.evaluatedRuns >= 3);
   });
 });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { POLICY_VERSION, RUBRIC_VERSION } from "@/lib/constants";
 import { buildWorkspaceCard, getCustomerByOrderId } from "@/lib/customers";
+import { buildDemoPortfolio } from "@/lib/demo-portfolio";
 import { agentModel, hasApiKey, transcriptionModel, ttsModel } from "@/lib/env";
 import { publicJudgeError } from "@/lib/errors";
 import {
@@ -18,19 +19,32 @@ import {
 } from "@/lib/feedback";
 import { judgeLanguage } from "@/lib/judge";
 import { RequestGuardError, withAgentSlot } from "@/lib/limits";
+import { buildObservability } from "@/lib/observability";
 import { resolveSession, listRuns, listSessions, saveRun, saveSession } from "@/lib/sessions";
-import type { EvalRun, QaStatus } from "@/lib/types";
+import type { EvalRun, PersistedSession, QaStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [sessions, runs, previews, feedback] = await Promise.all([
+  const [storedSessions, storedRuns, previews, storedFeedback] = await Promise.all([
     listSessions(),
     listRuns(),
     simulatedPreviews(),
     listFeedback(),
   ]);
+
+  const liveEvaluated = storedRuns.some((run) => run.source === "live");
+  const demo = liveEvaluated ? null : await buildDemoPortfolio();
+  const sessions: PersistedSession[] = demo
+    ? [...demo.sessions, ...storedSessions.filter((session) => !session.id.startsWith("demo-"))]
+    : storedSessions;
+  const runs: EvalRun[] = demo
+    ? [...demo.runs, ...storedRuns.filter((run) => !run.sessionId.startsWith("demo-"))]
+    : storedRuns;
+  const feedback = demo ? [...demo.feedback, ...storedFeedback] : storedFeedback;
+  const usingDemoPortfolio = Boolean(demo);
+
   const enrichedRuns = runs.map((run) => {
     const session = sessions.find((item) => item.id === run.sessionId);
     if (!session) return run;
@@ -54,6 +68,10 @@ export async function GET() {
       handoffOffered: fresh.handoffOffered,
     };
   });
+  const measured = summarizeMeasured(enrichedRuns, sessions);
+  if (usingDemoPortfolio && demo) {
+    measured.note = demo.note;
+  }
   const feedbackBySession = new Map(feedback.map((item) => [item.sessionId, item]));
   const conversationSnapshots = sessions
     .map((session) => {
@@ -85,6 +103,7 @@ export async function GET() {
         agentStyle: session.agentStyle ?? null,
         liveSentiment: session.liveSentiment ?? null,
         liveIssueFocus: session.liveIssueFocus ?? null,
+        demoSample: session.id.startsWith("demo-"),
       };
     })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -92,7 +111,10 @@ export async function GET() {
     policyVersion: POLICY_VERSION,
     rubricVersion: RUBRIC_VERSION,
     models: { agent: agentModel(), transcription: transcriptionModel(), tts: ttsModel() },
-    measured: summarizeMeasured(enrichedRuns, sessions),
+    usingDemoPortfolio,
+    demoNote: demo?.note ?? null,
+    measured,
+    observability: buildObservability(enrichedRuns, sessions, feedback),
     customerFeedback: summarizeFeedback(feedback, sessions),
     scenarios: previews.map((preview) => ({
       id: preview.scenario.id,

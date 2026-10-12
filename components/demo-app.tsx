@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { LandingPage, type LandingCard } from "@/components/landing-page";
-import { PmDashboard } from "@/components/pm-dashboard";
+import { SupportQaDashboard } from "@/components/pm-dashboard";
+import { PmObservability } from "@/components/pm-observability";
 import { PmSettings } from "@/components/pm-settings";
 import { VoiceAgent } from "@/components/voice-agent";
 
-type View = "landing" | "support" | "pm" | "settings";
+type View = "landing" | "support" | "pm" | "qa" | "settings";
 
 export function DemoApp() {
   const [view, setView] = useState<View>("landing");
@@ -55,7 +56,14 @@ export function DemoApp() {
           className={active === "pm" ? "landing-link active" : "landing-link"}
           onClick={() => setView("pm")}
         >
-          Performance dashboard
+          PM observability
+        </button>
+        <button
+          type="button"
+          className={active === "qa" ? "landing-link active" : "landing-link"}
+          onClick={() => setView("qa")}
+        >
+          Support QA
         </button>
         <button
           type="button"
@@ -78,6 +86,7 @@ export function DemoApp() {
           onSelectCustomer={selectCustomer}
           onOpenSupport={openSupport}
           onOpenDashboard={() => setView("pm")}
+          onOpenSupportQa={() => setView("qa")}
           onOpenSettings={() => setView("settings")}
         />
       ) : null}
@@ -101,7 +110,7 @@ export function DemoApp() {
               }}
               onOpenDashboard={(sessionId) => {
                 setFocusSession(sessionId);
-                setView("pm");
+                setView("qa");
               }}
             />
           </main>
@@ -119,7 +128,23 @@ export function DemoApp() {
             </div>
           </header>
           <main className="page wrap">
-            <PmDashboard focusSession={focusSession} />
+            <PmObservability onOpenSupportQa={() => setView("qa")} />
+          </main>
+        </div>
+      ) : null}
+
+      {view === "qa" ? (
+        <div className="app-shell">
+          <header className="app-nav">
+            <div className="wrap app-nav-inner">
+              <button type="button" className="landing-brand dark" onClick={() => setView("landing")}>
+                VELAWEAR
+              </button>
+              <Nav active="qa" />
+            </div>
+          </header>
+          <main className="page wrap">
+            <SupportQaDashboard focusSession={focusSession} />
           </main>
         </div>
       ) : null}

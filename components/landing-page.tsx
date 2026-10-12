@@ -23,6 +23,7 @@ type LandingPageProps = {
   onSelectCustomer: (customerId: string, orderId: string) => void;
   onOpenSupport: () => void;
   onOpenDashboard: () => void;
+  onOpenSupportQa: () => void;
   onOpenSettings: () => void;
   loading?: boolean;
 };
@@ -33,6 +34,7 @@ export function LandingPage({
   onSelectCustomer,
   onOpenSupport,
   onOpenDashboard,
+  onOpenSupportQa,
   onOpenSettings,
   loading,
 }: LandingPageProps) {
@@ -51,7 +53,10 @@ export function LandingPage({
               Customer support
             </button>
             <button type="button" className="landing-link" onClick={onOpenDashboard}>
-              Performance dashboard
+              PM observability
+            </button>
+            <button type="button" className="landing-link" onClick={onOpenSupportQa}>
+              Support QA
             </button>
             <button type="button" className="landing-link" onClick={onOpenSettings}>
               Agent settings
@@ -70,7 +75,7 @@ export function LandingPage({
                 <span aria-hidden="true">→</span>
               </button>
               <button type="button" className="landing-btn ghost" onClick={onOpenDashboard}>
-                Performance dashboard
+                PM observability
                 <span aria-hidden="true">→</span>
               </button>
             </div>

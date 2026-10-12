@@ -114,6 +114,35 @@ type ConversationSnapshot = {
   } | null;
   liveSentiment?: string | null;
   liveIssueFocus?: string | null;
+  demoSample?: boolean;
+};
+
+type AgentScorecard = {
+  agentName: string;
+  role: string;
+  evaluatedRuns: number;
+  passRate: number | null;
+  avgScore: number | null;
+  csat: number | null;
+  resolutionRate: number | null;
+  needsReviewCount: number;
+  languageReviewedCount: number;
+};
+
+type QaQueueItem = {
+  sessionId: string;
+  orderId: string | null;
+  scenarioId: string | null;
+  reason: string;
+  priority: "high" | "medium" | "watch";
+  updatedAt: string;
+  score: number | null;
+};
+
+type Observability = {
+  agentScorecard: AgentScorecard;
+  qaQueue: QaQueueItem[];
+  note: string;
 };
 
 type Measured = {
@@ -206,7 +235,10 @@ type Payload = {
   policyVersion: string;
   rubricVersion: string;
   models: { agent: string; transcription: string; tts: string };
+  usingDemoPortfolio?: boolean;
+  demoNote?: string | null;
   measured: Measured;
+  observability?: Observability;
   customerFeedback: CustomerFeedbackSummary;
   scenarios: ScenarioRow[];
   runs: Run[];
@@ -226,6 +258,11 @@ const LABELS: Record<string, string> = {
 const GATE = new Set(["policy_accuracy", "case_grounding", "action_safety", "identity_privacy", "task_outcome"]);
 
 type RowStatus = "pass" | "needs_review" | "in_progress" | "fail";
+
+/** Support-team QA workspace: score conversations, coach language, review failures. */
+export function SupportQaDashboard({ focusSession }: { focusSession: string | null }) {
+  return <PmDashboard focusSession={focusSession} />;
+}
 
 export function PmDashboard({ focusSession }: { focusSession: string | null }) {
   const [data, setData] = useState<Payload | null>(null);
@@ -422,8 +459,10 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
     <div className="dashboard pm-dash">
       <div className="pm-head">
         <div>
-          <h1 className="pm-title">Voice agent performance</h1>
-          <p className="muted">Decision view: what to fix next. Hover the info icons for metric definitions.</p>
+          <h1 className="pm-title">Support QA · Agent evaluation</h1>
+          <p className="muted">
+            Score Priya&apos;s Care conversations, review rubric failures, and coach language quality. Hover info icons for definitions.
+          </p>
         </div>
         <div className="actions pm-tabs">
           <button className={view === "overview" ? "secondary" : "ghost"} onClick={() => setView("overview")}>
@@ -436,6 +475,12 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
       </div>
 
       {error ? <div className="banner banner-danger">{error}</div> : null}
+      {data?.usingDemoPortfolio ? (
+        <div className="banner banner-amber">
+          <strong>Sample portfolio data</strong>
+          <p>{data.demoNote || "Fixture scenarios fill the QA queue until a live chat is ended and evaluated."}</p>
+        </div>
+      ) : null}
       {data ? (
         <p className="muted pm-meta">
           Policy {data.policyVersion} · Rubric {data.rubricVersion} · {data.models.agent} / {data.models.transcription} / {data.models.tts}
@@ -444,6 +489,62 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
 
       {view === "overview" && data && measured ? (
         <>
+          {data.observability?.agentScorecard ? (
+            <section className="panel qa-agent-card">
+              <div className="qa-agent-head">
+                <div>
+                  <p className="access-kicker">Agent under review</p>
+                  <h2>
+                    {data.observability.agentScorecard.agentName}{" "}
+                    <span className="muted">· {data.observability.agentScorecard.role}</span>
+                  </h2>
+                </div>
+                <div className="qa-agent-stats">
+                  <div>
+                    <b>{pct(data.observability.agentScorecard.passRate)}</b>
+                    <span>Pass rate</span>
+                  </div>
+                  <div>
+                    <b>
+                      {data.observability.agentScorecard.avgScore === null
+                        ? "—"
+                        : `${Math.round(data.observability.agentScorecard.avgScore)}`}
+                    </b>
+                    <span>Avg score</span>
+                  </div>
+                  <div>
+                    <b>{pct(data.observability.agentScorecard.csat)}</b>
+                    <span>CSAT</span>
+                  </div>
+                  <div>
+                    <b>{pct(data.observability.agentScorecard.resolutionRate)}</b>
+                    <span>Resolution</span>
+                  </div>
+                  <div>
+                    <b>{data.observability.agentScorecard.needsReviewCount}</b>
+                    <span>Needs review</span>
+                  </div>
+                </div>
+              </div>
+              {(data.observability.qaQueue ?? []).length > 0 ? (
+                <div className="qa-queue">
+                  <h3>QA coaching queue</h3>
+                  <ul>
+                    {data.observability.qaQueue.slice(0, 6).map((item) => (
+                      <li key={item.sessionId}>
+                        <button type="button" className="ghost qa-queue-item" onClick={() => openConversation(item.sessionId)}>
+                          <span className={`pm-priority ${item.priority}`}>{item.priority}</span>
+                          <strong>{item.orderId || item.scenarioId || item.sessionId}</strong>
+                          <span className="muted">{item.reason}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
           <div className="filters pm-filters">
             <Select
               label="Time range"
