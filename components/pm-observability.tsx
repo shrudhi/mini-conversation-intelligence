@@ -106,7 +106,7 @@ export function PmObservability({ onOpenSupportQa }: { onOpenSupportQa?: () => v
         {onOpenSupportQa ? (
           <div className="actions pm-tabs">
             <button type="button" className="secondary" onClick={onOpenSupportQa}>
-              Open Support QA
+              Open conversation review
             </button>
           </div>
         ) : null}

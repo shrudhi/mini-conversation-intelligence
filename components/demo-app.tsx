@@ -63,7 +63,7 @@ export function DemoApp() {
           className={active === "qa" ? "landing-link active" : "landing-link"}
           onClick={() => setView("qa")}
         >
-          Support QA
+          Conversation review
         </button>
         <button
           type="button"

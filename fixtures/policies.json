@@ -74,6 +74,6 @@
     "version": "vela-returns-v1",
     "topic": "escalation",
     "applies_to": ["escalation", "human_review", "ticket", "payment_support"],
-    "text": "Explain an eligible escalation in plain language. Creating a support ticket requires explicit customer approval, a second server-side eligibility check, and an idempotency key so only one ticket is created for the same order and issue type. Payment support is for overdue refunds, pickup support is for delayed pickup, and human review is for exceptions or incomplete records. Never claim a ticket was created, flagged, or escalated unless the ticket tool succeeded. Never create a ticket without approval."
+    "text": "Explain an eligible escalation in plain language. For critical overdue or P1 cases, Care may auto-create one payment-support ticket and inform the customer of the ticket ID without asking for a confirmation they cannot evaluate. For non-critical offers, creating a support ticket still requires explicit customer approval. Every ticket gets a second server-side eligibility check and an idempotency key so only one ticket is created for the same order and issue type. Payment support is for overdue refunds, pickup support is for delayed pickup, and human review is for exceptions or incomplete records. Never claim a ticket was created, flagged, or escalated unless the ticket tool succeeded."
   }
 ]

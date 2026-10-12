@@ -459,9 +459,9 @@ export function PmDashboard({ focusSession }: { focusSession: string | null }) {
     <div className="dashboard pm-dash">
       <div className="pm-head">
         <div>
-          <h1 className="pm-title">Support QA · Agent evaluation</h1>
+          <h1 className="pm-title">Conversation review</h1>
           <p className="muted">
-            Score Priya&apos;s Care conversations, review rubric failures, and coach language quality. Hover info icons for definitions.
+            Open a chat, see how Priya scored on Care policy, and leave coaching notes on language. Hover info icons for definitions.
           </p>
         </div>
         <div className="actions pm-tabs">

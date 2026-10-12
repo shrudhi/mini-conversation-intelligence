@@ -56,7 +56,7 @@ export function LandingPage({
               PM observability
             </button>
             <button type="button" className="landing-link" onClick={onOpenSupportQa}>
-              Support QA
+              Conversation review
             </button>
             <button type="button" className="landing-link" onClick={onOpenSettings}>
               Agent settings
